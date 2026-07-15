@@ -1,0 +1,40 @@
+name: Deploy Pedidos via SSH
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p 65002 ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+      - name: Generar config.php desde secrets
+        run: |
+          cat > config.php << 'EOF'
+          <?php
+          define('MUHU_BASE_URL', 'https://ops.muhucafeteria.com');
+          define('OPS_INGEST_TOKEN', '${{ secrets.OPS_INGEST_TOKEN }}');
+          $PEDIDOS_USERS = [
+              'trabajador' => [
+                  'hash' => '${{ secrets.PEDIDOS_USER_HASH }}',
+                  'name' => 'Trabajador Cocina'
+              ],
+          ];
+          EOF
+          chmod 600 config.php
+      - name: Deploy
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' --exclude='.github/' --exclude='*.md' --exclude='server.py' \
+            -e "ssh -p 65002" ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH"
