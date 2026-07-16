@@ -76,6 +76,30 @@ if ($action === 'catalogo') {
 }
 
 if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF protection: Validate HTTP_ORIGIN and HTTP_REFERER
+    $allowed_host = $_SERVER['HTTP_HOST'] ?? '';
+    
+    // Check Origin header if present
+    if (isset($_SERVER['HTTP_ORIGIN'])) {
+        $origin = $_SERVER['HTTP_ORIGIN'];
+        $origin_parts = parse_url($origin);
+        if (($origin_parts['host'] ?? '') !== $allowed_host) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Origen no permitido (CSRF bloqueado).']);
+            exit;
+        }
+    }
+    // Fallback to Referer check
+    elseif (isset($_SERVER['HTTP_REFERER'])) {
+        $referer = $_SERVER['HTTP_REFERER'];
+        $referer_parts = parse_url($referer);
+        if (($referer_parts['host'] ?? '') !== $allowed_host) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Referencia no permitida (CSRF bloqueado).']);
+            exit;
+        }
+    }
+
     $in = json_decode(file_get_contents('php://input'), true) ?: [];
     
     // 1. Sanitizar nota (máximo 300 caracteres, sin HTML)
@@ -108,8 +132,8 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $codigo = trim(strip_tags($item['codigo'] ?? ''));
         $cantidad = filter_var($item['cantidad'] ?? 0, FILTER_VALIDATE_FLOAT);
         
-        // El catálogo exige código y cantidad estrictamente positiva
-        if (!empty($codigo) && $cantidad !== false && $cantidad > 0) {
+        // El catálogo exige código (alfanumérico y guiones) y cantidad estrictamente positiva
+        if (!empty($codigo) && preg_match('/^[A-Z0-9\-]+$/i', $codigo) && $cantidad !== false && $cantidad > 0) {
             $items[] = [
                 'codigo'   => $codigo,
                 'cantidad' => round($cantidad, 2)

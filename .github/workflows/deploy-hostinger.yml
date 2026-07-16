@@ -36,5 +36,5 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           rsync -az --delete \
-            --exclude='.git/' --exclude='.github/' --exclude='*.md' --exclude='server.py' \
+            --exclude='.git/' --exclude='.github/' --exclude='*.md' --exclude='*.py' \
             -e "ssh -p 65002" ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH"
