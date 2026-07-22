@@ -35,9 +35,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Regenerate session ID to prevent fixation
             session_regenerate_id(true);
             
+            // Resolver rol: explícito en config, o inferido por username.
+            $role = !empty($user_info['role'])
+                ? $user_info['role']
+                : ($username === 'admin' ? 'admin' : 'staff');
+
             $_SESSION['user'] = [
                 'username' => $username,
-                'name'     => $user_info['name']
+                'name'     => $user_info['name'],
+                'role'     => $role
             ];
             $_SESSION['last_activity'] = time();
             

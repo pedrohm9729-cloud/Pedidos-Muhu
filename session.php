@@ -19,11 +19,15 @@ if (isset($_SESSION['user'])) {
     // Update activity timestamp
     $_SESSION['last_activity'] = time();
     
+    $username = $_SESSION['user']['username'];
+    $role = $_SESSION['user']['role'] ?? ($username === 'admin' ? 'admin' : 'staff');
+
     echo json_encode([
         'logged_in' => true,
         'user' => [
-            'username' => $_SESSION['user']['username'],
-            'name' => $_SESSION['user']['name']
+            'username' => $username,
+            'name' => $_SESSION['user']['name'],
+            'role' => $role
         ]
     ]);
 } else {
