@@ -22,9 +22,20 @@ jobs:
           define('MUHU_BASE_URL', 'https://ops.muhucafeteria.com');
           define('OPS_INGEST_TOKEN', '${{ secrets.OPS_INGEST_TOKEN }}');
           $PEDIDOS_USERS = [
+              'admin' => [
+                  'hash' => '${{ secrets.ADMIN_PASSWORD_HASH }}',
+                  'name' => 'Administrador',
+                  'role' => 'admin'
+              ],
+              'sandra' => [
+                  'hash' => '${{ secrets.SANDRA_PASSWORD_HASH }}',
+                  'name' => 'Sandra',
+                  'role' => 'staff'
+              ],
               'trabajador' => [
                   'hash' => '${{ secrets.PEDIDOS_USER_HASH }}',
-                  'name' => 'Trabajador Cocina'
+                  'name' => 'Trabajador Cocina',
+                  'role' => 'staff'
               ],
           ];
           EOF
@@ -37,4 +48,5 @@ jobs:
         run: |
           rsync -az --delete \
             --exclude='.git/' --exclude='.github/' --exclude='*.md' --exclude='*.py' \
+            --exclude='data/' --exclude='config.example.php' \
             -e "ssh -p 65002" ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH"

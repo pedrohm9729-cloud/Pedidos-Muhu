@@ -1,8 +1,11 @@
 Options -Indexes
 
-<FilesMatch "^(config\.php|.*\.log)$">
+<FilesMatch "^(config\.php|.*\.log|pedidos\.json)$">
     Require all denied
 </FilesMatch>
+
+# Bloquear acceso web al directorio de datos locales (copia de pedidos)
+RedirectMatch 403 ^/data(/|$)
 
 <IfModule mod_headers.c>
     Header always set X-Frame-Options "SAMEORIGIN"
