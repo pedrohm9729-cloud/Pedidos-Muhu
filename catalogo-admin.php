@@ -158,47 +158,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  * @return array [bool $ok, string $err, string $msg]
  */
 function importar_csv_string(PDO $db, string $csv): array {
-    // Limpiar BOM UTF-8
     $csv = ltrim($csv, "\xEF\xBB\xBF");
     $lines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $csv)));
     if (count($lines) < 2) return [false, 'El archivo está vacío o tiene menos de 2 filas.', ''];
 
-    // Detectar separador (coma o punto y coma)
     $first = $lines[0];
     $sep   = substr_count($first, ';') >= substr_count($first, ',') ? ';' : ',';
 
-    $header = array_map(fn($h) => mb_strtolower(trim($h, ' "\'')), str_getcsv($first, $sep));
+    $header = array_map(fn($h) => mb_strtolower(trim($h, " \t\n\r\0\x0B\"'")), str_getcsv($first, $sep));
 
-    // Mapear columnas (flexible: acepta variaciones)
     $map = [];
     foreach ($header as $i => $h) {
-        if (str_contains($h, 'cod'))  $map['codigo']    = $i;
-        if (str_contains($h, 'nom'))  $map['nombre']    = $i;
-        if (str_contains($h, 'uni'))  $map['unidad']    = $i;
-        if (str_contains($h, 'cat'))  $map['categoria'] = $i;
-        if (str_contains($h, 'prov')) $map['proveedor'] = $i;
-    }
-    $req = ['codigo','nombre','unidad','categoria'];
-    foreach ($req as $r) {
-        if (!isset($map[$r])) return [false, "No se encontró la columna «{$r}» en el archivo. Encabezados detectados: " . implode(', ', $header), ''];
+        if (str_contains($h, 'cod') || str_contains($h, 'item') || str_contains($h, 'ítem')) $map['codigo'] = $i;
+        if (str_contains($h, 'nom') || str_contains($h, 'desc'))                              $map['nombre'] = $i;
+        if (str_contains($h, 'uni') || str_contains($h, 'u.m'))                               $map['unidad'] = $i;
+        if (str_contains($h, 'cat'))                                                          $map['categoria'] = $i;
+        if (str_contains($h, 'prov'))                                                         $map['proveedor'] = $i;
     }
 
+    $req = ['nombre', 'unidad', 'categoria'];
+    foreach ($req as $r) {
+        if (!isset($map[$r])) return [false, "No se encontró la columna «{$r}» en la hoja. Encabezados detectados: " . implode(', ', $header), ''];
+    }
+
+    $CAT_PREFIX = [
+        'abarrotes' => 'AB', 'cafe' => 'CA', 'carnicos' => 'CR', 'frutas' => 'FR',
+        'huevos' => 'HU', 'descartables' => 'DE', 'gas/limpieza' => 'GL', 'lacteos' => 'LA',
+        'verduras' => 'VE', 'aves' => 'AV',
+    ];
+
+    $db->exec('BEGIN TRANSACTION; DELETE FROM catalogo;');
     $ins = $db->prepare('INSERT OR REPLACE INTO catalogo (codigo,nombre,unidad,categoria,proveedor,activo) VALUES (?,?,?,?,?,1)');
     $ok_count = 0; $skip = 0;
+    $cat_counters = [];
     array_shift($lines); // quitar encabezado
+
     foreach ($lines as $line) {
         if (trim($line) === '') continue;
         $cols = str_getcsv($line, $sep);
-        $codigo    = strtoupper(trim($cols[$map['codigo']]    ?? ''));
-        $nombre    = trim($cols[$map['nombre']]    ?? '');
-        $unidad    = trim($cols[$map['unidad']]    ?? '');
-        $categoria = trim($cols[$map['categoria']] ?? '');
+        $nombre    = trim($cols[$map['nombre']] ?? '');
+        $unidad    = trim($cols[$map['unidad']] ?? 'Und') ?: 'Und';
+        $categoria = mb_convert_case(trim($cols[$map['categoria']] ?? 'Abarrotes'), MB_CASE_TITLE, 'UTF-8');
         $proveedor = trim($cols[$map['proveedor']] ?? 'Otro') ?: 'Otro';
-        if (!$codigo || !$nombre || !preg_match('/^[A-Z0-9\-]+$/u', $codigo)) { $skip++; continue; }
+
+        if (!$nombre) { $skip++; continue; }
+
+        if (isset($map['codigo']) && !empty(trim($cols[$map['codigo']] ?? '')) && preg_match('/^[A-Z]{2,4}\-\d+$/i', trim($cols[$map['codigo']]))) {
+            $codigo = strtoupper(trim($cols[$map['codigo']]));
+        } else {
+            $cat_raw = mb_strtolower($categoria);
+            $prefix = $CAT_PREFIX[$cat_raw] ?? 'OT';
+            $cat_counters[$prefix] = ($cat_counters[$prefix] ?? 0) + 1;
+            $codigo = $prefix . '-' . str_pad((string)$cat_counters[$prefix], 3, '0', STR_PAD_LEFT);
+        }
+
         $ins->execute([$codigo, $nombre, $unidad, $categoria, $proveedor]);
         $ok_count++;
     }
-    return [true, '', "✅ {$ok_count} ítems importados/actualizados" . ($skip ? ", {$skip} filas ignoradas (código inválido o vacío)." : '.')];
+    $db->exec('COMMIT;');
+    return [true, '', "✅ {$ok_count} ítems importados correctamente con sus proveedores."];
 }
 
 // ── GET ─────────────────────────────────────────────────────────
