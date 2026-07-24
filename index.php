@@ -610,9 +610,13 @@ $isAdmin = ($role === 'admin');
                         <span>Pedidos en curso</span>
                     </div>
                 <?php else: ?>
-                    <div class="nav-item active">
+                    <div class="nav-item active" id="navNuevoPedido" onclick="switchStaffTab('nuevo')">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                         <span>Nuevo pedido</span>
+                    </div>
+                    <div class="nav-item" id="navMisPedidos" onclick="switchStaffTab('mis')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        <span>Mis pedidos</span>
                     </div>
                 <?php endif; ?>
             </nav>
@@ -672,20 +676,27 @@ $isAdmin = ($role === 'admin');
             <!-- ════════ VISTA PERSONAL (crear pedido) ════════ -->
             <div class="page-head">
                 <div>
-                    <h2>Nuevo pedido</h2>
-                    <p>Selecciona los insumos y las cantidades que necesitas</p>
+                    <h2 id="staffPageTitle">Nuevo pedido</h2>
+                    <p id="staffPageDesc">Selecciona los insumos y las cantidades que necesitas</p>
                 </div>
             </div>
 
-            <div class="staff-body">
+            <!-- ─── TAB: Nuevo pedido ─── -->
+            <div id="tabNuevo" class="staff-body">
                 <div class="catalog-col">
                     <div class="toolbar">
                         <div class="search-wrap">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                             <input type="text" id="searchInput" class="search-input" placeholder="Buscar insumo por nombre...">
                         </div>
-                        <div class="chips" id="categoriesContainer">
-                            <div class="chip active" data-category="Todos">Todos</div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <div class="chips" id="categoriesContainer">
+                                <div class="chip active" data-category="Todos">Todos</div>
+                            </div>
+                            <button class="btn" id="btnItemLibre" style="white-space:nowrap;gap:6px;padding:0 14px;height:36px;font-size:0.82rem;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Ítem libre
+                            </button>
                         </div>
                     </div>
                     <div class="catalog" id="catalogContainer">
@@ -723,6 +734,32 @@ $isAdmin = ($role === 'admin');
                         </button>
                     </div>
                 </aside>
+            </div>
+            <!-- FIN TAB: Nuevo pedido -->
+
+            <!-- TAB: Mis pedidos -->
+            <div id="tabMis" style="display:none;">
+                <div class="admin-body">
+                    <div class="orders-list" id="misPedidosList">
+                        <div class="sk"></div><div class="sk"></div><div class="sk"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal ítem libre -->
+            <div class="modal" id="modalItemLibre">
+                <div class="modal-card">
+                    <div class="modal-ico" style="font-size:1.5rem;">✏️</div>
+                    <h3 class="modal-title">Agregar ítem libre</h3>
+                    <p class="modal-desc" style="margin-bottom:14px;">Escribe el nombre del producto y la cantidad. Se enviará tal cual al administrador.</p>
+                    <input id="itemLibreNombre" type="text" class="search-input" placeholder="Nombre del producto (ej. Azúcar rubia)" style="margin-bottom:10px;width:100%;" maxlength="80">
+                    <input id="itemLibreCantidad" type="number" class="search-input" placeholder="Cantidad (ej. 5)" min="0.01" step="0.01" style="margin-bottom:10px;width:100%;">
+                    <input id="itemLibreUnidad" type="text" class="search-input" placeholder="Unidad (ej. kg, litro, bolsa)" style="margin-bottom:18px;width:100%;" maxlength="20">
+                    <div style="display:flex;gap:10px;">
+                        <button class="btn" id="btnItemLibreCancel" style="flex:1;">Cancelar</button>
+                        <button class="btn btn-gold" id="btnItemLibreOk" style="flex:1;">Agregar al pedido</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Barra flotante (móvil) -->
@@ -1058,6 +1095,94 @@ $isAdmin = ($role === 'admin');
             });
 
             fetchCatalog();
+
+            // ── Ítem libre ──
+            const modalItemLibre = document.getElementById('modalItemLibre');
+            document.getElementById('btnItemLibre').addEventListener('click', () => {
+                document.getElementById('itemLibreNombre').value = '';
+                document.getElementById('itemLibreCantidad').value = '';
+                document.getElementById('itemLibreUnidad').value = '';
+                modalItemLibre.classList.add('active');
+                setTimeout(() => document.getElementById('itemLibreNombre').focus(), 80);
+            });
+            document.getElementById('btnItemLibreCancel').addEventListener('click', () => modalItemLibre.classList.remove('active'));
+            document.getElementById('btnItemLibreOk').addEventListener('click', () => {
+                const nombre   = document.getElementById('itemLibreNombre').value.trim();
+                const cantidad = parseFloat(document.getElementById('itemLibreCantidad').value);
+                const unidad   = document.getElementById('itemLibreUnidad').value.trim() || 'und';
+                if (!nombre)             { document.getElementById('itemLibreNombre').focus();   return; }
+                if (!cantidad || cantidad <= 0) { document.getElementById('itemLibreCantidad').focus(); return; }
+                const codigo = 'LIBRE-' + Date.now().toString(36).toUpperCase().slice(-5);
+                catMap[codigo] = { nombre, unidad, categoria: 'Libre' };
+                addToCart({ codigo, nombre, unidad, categoria: 'Libre' }, cantidad);
+                modalItemLibre.classList.remove('active');
+            });
+        }
+
+        // ── Switch tabs staff ──
+        window.switchStaffTab = function(tab) {
+            const navNuevo = document.getElementById('navNuevoPedido');
+            const navMis   = document.getElementById('navMisPedidos');
+            const tabNuevo = document.getElementById('tabNuevo');
+            const tabMis   = document.getElementById('tabMis');
+            const title    = document.getElementById('staffPageTitle');
+            const desc     = document.getElementById('staffPageDesc');
+            if (tab === 'nuevo') {
+                navNuevo.classList.add('active');   navMis.classList.remove('active');
+                tabNuevo.style.display = '';        tabMis.style.display = 'none';
+                title.textContent = 'Nuevo pedido';
+                desc.textContent  = 'Selecciona los insumos y las cantidades que necesitas';
+            } else {
+                navMis.classList.add('active');     navNuevo.classList.remove('active');
+                tabNuevo.style.display = 'none';    tabMis.style.display = '';
+                title.textContent = 'Mis pedidos';
+                desc.textContent  = 'Historial de pedidos que has enviado';
+                loadMisPedidos();
+            }
+        };
+
+        async function loadMisPedidos() {
+            const el = document.getElementById('misPedidosList');
+            if (!el) return;
+            el.innerHTML = '<div class="sk"></div><div class="sk"></div>';
+            try {
+                await loadCatalog().catch(() => {});
+                const r = await fetch('api.php?action=mis-pedidos');
+                if (r.status === 401) { window.location.href = 'login.php'; return; }
+                const data = await r.json();
+                const pedidos = data.pedidos || [];
+                const ESTADO_LABEL = { enviado: 'Enviado', preparacion: 'En preparación', completado: 'Completado', anulado: 'Anulado', error: 'Error' };
+                const ESTADO_CLS   = { enviado: 'enviado', preparacion: 'preparacion', completado: 'completado', anulado: 'anulado', error: 'error' };
+                const fmtDate = iso => { try { return new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return iso; } };
+                if (!pedidos.length) {
+                    el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>Aún no tienes pedidos enviados.</p></div>`;
+                    return;
+                }
+                el.innerHTML = pedidos.map(p => {
+                    const est   = p.estado || 'enviado';
+                    const items = (p.items || []).map(it => {
+                        const prod = catMap[it.codigo];
+                        const name = prod ? prod.nombre : it.codigo;
+                        const unit = prod ? (prod.unidad || 'und') : '';
+                        return `<span class="item-pill"><b>${fmtNum(it.cantidad)} ${escapeHtml(unit)}</b> · ${escapeHtml(name)}</span>`;
+                    }).join('');
+                    return `<div class="order-card">
+                        <div class="oc-head">
+                            <div class="oc-id">
+                                <div class="oc-sub">${p.folio ? 'Folio ' + escapeHtml(String(p.folio)) + ' · ' : ''}${fmtDate(p.creado_en)}</div>
+                            </div>
+                            <span class="estado ${ESTADO_CLS[est] || est}">${ESTADO_LABEL[est] || est}</span>
+                        </div>
+                        <div class="oc-items">${items || '<span class="oc-totals">Sin ítems</span>'}</div>
+                        ${p.nota ? `<div class="oc-note">"${escapeHtml(p.nota)}"</div>` : ''}
+                        <div class="oc-foot">
+                            <div class="oc-totals"><strong>${p.total_lineas ?? (p.items || []).length}</strong> insumos · <strong>${fmtNum(p.total_unidades || 0)}</strong> unidades</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (err) {
+                el.innerHTML = `<div class="empty" style="color:var(--danger)"><p>${escapeHtml(err.message)}</p></div>`;
+            }
         }
 
         // ════════════════════════════════════════════

@@ -304,5 +304,13 @@ if ($action === 'estado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── Mis pedidos (personal: solo los propios) ──────────────────────
+if ($action === 'mis-pedidos') {
+    $all = pedidos_load();
+    $mios = array_values(array_filter($all, fn($p) => ($p['usuario'] ?? '') === $username));
+    echo json_encode(['pedidos' => $mios]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['error' => 'Acción no reconocida o método incorrecto.']);
