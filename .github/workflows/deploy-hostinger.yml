@@ -37,6 +37,16 @@ jobs:
                   'name' => 'Trabajador Cocina',
                   'role' => 'staff'
               ],
+              'andrea' => [
+                  'hash' => '${{ secrets.ANDREA_PASSWORD_HASH }}',
+                  'name' => 'Andrea Salón',
+                  'role' => 'staff'
+              ],
+              'mayra' => [
+                  'hash' => '${{ secrets.MAYRA_PASSWORD_HASH }}',
+                  'name' => 'Mayra Cocina',
+                  'role' => 'staff'
+              ],
           ];
           EOF
           chmod 600 config.php
