@@ -1177,8 +1177,8 @@ $isAdmin = ($role === 'admin');
                 if (!nombre)             { document.getElementById('itemLibreNombre').focus();   return; }
                 if (!cantidad || cantidad <= 0) { document.getElementById('itemLibreCantidad').focus(); return; }
                 const codigo = 'LIBRE-' + Date.now().toString(36).toUpperCase().slice(-5);
-                catMap[codigo] = { nombre, unidad, categoria: 'Libre' };
-                addToCart({ codigo, nombre, unidad, categoria: 'Libre' }, cantidad);
+                catMap[codigo] = { codigo, nombre, unidad, categoria: 'Libre', proveedor: 'Libre' };
+                setCount(codigo, cantidad);
                 modalItemLibre.classList.remove('active');
             });
         }
