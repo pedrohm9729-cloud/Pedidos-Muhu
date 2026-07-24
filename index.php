@@ -504,6 +504,56 @@ $isAdmin = ($role === 'admin');
         .btn-done:hover { border-color: var(--success); color: var(--success); }
         .btn-void:hover { border-color: var(--danger); color: var(--danger); }
 
+        /* ── Admin Purchasing & Order Tables ── */
+        .btn-toggle-view {
+            padding: 8px 16px; border-radius: 11px; font-size: 13.5px; font-weight: 600;
+            cursor: pointer; transition: var(--transition); border: 1px solid var(--line);
+            background: var(--surface-2); color: var(--muted); font-family: var(--font);
+        }
+        .btn-toggle-view.active {
+            background: var(--gold-dim); color: var(--gold-soft); border-color: var(--gold-line);
+        }
+        .order-table {
+            width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px;
+        }
+        .order-table th {
+            background: var(--bg-2); color: var(--muted-2); font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.6px; padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line);
+        }
+        .order-table td {
+            padding: 9px 12px; border-bottom: 1px solid var(--line); color: var(--text); vertical-align: middle;
+        }
+        .order-table tr:last-child td { border-bottom: none; }
+        .price-inp {
+            width: 90px; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px;
+            padding: 5px 8px; color: var(--gold-soft); font-family: var(--font); font-size: 13px; font-weight: 700;
+            outline: none; transition: var(--transition); text-align: right;
+        }
+        .price-inp:focus { border-color: var(--gold-line); box-shadow: 0 0 0 2px var(--gold-dim); }
+        .prov-inp {
+            background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px;
+            padding: 5px 8px; color: var(--text); font-family: var(--font); font-size: 12.5px; outline: none;
+            max-width: 140px;
+        }
+        .prov-card {
+            background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+            padding: 18px 20px; margin-bottom: 16px;
+        }
+        .prov-card-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line);
+        }
+        .prov-title { font-size: 16.5px; font-weight: 700; color: var(--gold-soft); display: flex; align-items: center; gap: 8px; }
+        .btn-whatsapp {
+            background: #128c7e; color: #fff; border: none; border-radius: 9px; padding: 7px 14px;
+            font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;
+            font-family: var(--font); transition: var(--transition);
+        }
+        .btn-whatsapp:hover { background: #075e54; }
+        .hist-ref {
+            font-size: 11px; color: var(--muted-2); background: var(--bg-2); padding: 2px 6px; border-radius: 5px; font-weight: 500;
+        }
+
         /* ── Alert modal ───────────────────────────── */
         .modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 300;
@@ -649,8 +699,8 @@ $isAdmin = ($role === 'admin');
             <!-- ════════ VISTA ADMIN ════════ -->
             <div class="page-head">
                 <div>
-                    <h2>Pedidos en curso</h2>
-                    <p>Seguimiento de los pedidos del personal — estados y totales</p>
+                    <h2>Gestión de Pedidos y Compras</h2>
+                    <p>Seguimiento de pedidos, precios por proveedor y hoja de compras</p>
                 </div>
                 <button class="btn" id="btnRefresh">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -658,7 +708,11 @@ $isAdmin = ($role === 'admin');
                 </button>
             </div>
 
-            <div class="toolbar">
+            <div class="toolbar" style="display:flex;flex-direction:column;gap:12px;">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn-toggle-view active" id="btnModePedidos">📋 Vista por Pedidos</button>
+                    <button class="btn-toggle-view" id="btnModeProveedores">🛒 Hoja de Compras por Proveedor</button>
+                </div>
                 <div class="chips" id="estadoChips">
                     <div class="chip active" data-estado="curso">En curso</div>
                     <div class="chip" data-estado="todos">Todos</div>
@@ -674,6 +728,7 @@ $isAdmin = ($role === 'admin');
                 <div class="orders-list" id="ordersList">
                     <div class="sk"></div><div class="sk"></div><div class="sk"></div>
                 </div>
+                <div class="orders-list" id="purchasingList" style="display:none;"></div>
             </div>
 
 <?php else: ?>
@@ -1190,32 +1245,70 @@ $isAdmin = ($role === 'admin');
         }
 
         // ════════════════════════════════════════════
-        //  VISTA ADMIN — gestión de pedidos
+        //  VISTA ADMIN — gestión de pedidos y compras
         // ════════════════════════════════════════════
         function initAdmin() {
             const statsEl = document.getElementById('stats');
             const ordersEl = document.getElementById('ordersList');
+            const purchasingEl = document.getElementById('purchasingList');
             const btnRefresh = document.getElementById('btnRefresh');
             const estadoChips = document.getElementById('estadoChips');
+            const btnModePedidos = document.getElementById('btnModePedidos');
+            const btnModeProveedores = document.getElementById('btnModeProveedores');
+
             let pedidos = [];
+            let priceHistMap = {};
             let filtro = 'curso';
-            let pollTimer = null;
+            let mode = 'pedidos'; // 'pedidos' o 'proveedores'
+            let expandedOrders = {}; // request_id -> bool
 
             const ESTADO_LABEL = { enviado: 'Nuevo', preparacion: 'En preparación', completado: 'Completado', anulado: 'Anulado', error: 'Error de envío' };
             const isToday = iso => { const d = new Date(iso); const n = new Date(); return d.toDateString() === n.toDateString(); };
             const fmtDate = iso => { try { return new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return iso; } };
+
+            if (btnModePedidos && btnModeProveedores) {
+                btnModePedidos.addEventListener('click', () => {
+                    mode = 'pedidos';
+                    btnModePedidos.classList.add('active');
+                    btnModeProveedores.classList.remove('active');
+                    ordersEl.style.display = '';
+                    if (purchasingEl) purchasingEl.style.display = 'none';
+                    if (statsEl) statsEl.style.display = '';
+                    renderMain();
+                });
+                btnModeProveedores.addEventListener('click', () => {
+                    mode = 'proveedores';
+                    btnModeProveedores.classList.add('active');
+                    btnModePedidos.classList.remove('active');
+                    ordersEl.style.display = 'none';
+                    if (purchasingEl) purchasingEl.style.display = '';
+                    if (statsEl) statsEl.style.display = 'none';
+                    renderMain();
+                });
+            }
 
             estadoChips.querySelectorAll('.chip').forEach(chip => {
                 chip.addEventListener('click', () => {
                     estadoChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
                     chip.classList.add('active');
                     filtro = chip.dataset.estado;
-                    renderOrders();
+                    renderMain();
                 });
             });
 
+            async function loadPriceHistory() {
+                try {
+                    const r = await fetch('api.php?action=historial_precios');
+                    if (r.ok) {
+                        const data = await r.json();
+                        priceHistMap = data.historial || {};
+                    }
+                } catch (e) {}
+            }
+
             async function loadPedidos() {
-                try { await loadCatalog(); } catch (e) { /* catálogo opcional para nombres */ }
+                try { await loadCatalog(); } catch (e) {}
+                await loadPriceHistory();
                 const r = await fetch('api.php?action=pedidos');
                 if (r.status === 401) { window.location.href = 'login.php'; return; }
                 if (r.status === 403) { ordersEl.innerHTML = `<div class="empty">Acceso restringido.</div>`; return; }
@@ -1223,7 +1316,7 @@ $isAdmin = ($role === 'admin');
                 const data = await r.json();
                 pedidos = data.pedidos || [];
                 renderStats();
-                renderOrders();
+                renderMain();
             }
 
             function renderStats() {
@@ -1253,6 +1346,14 @@ $isAdmin = ($role === 'admin');
                 return p.estado === filtro;
             }
 
+            function renderMain() {
+                if (mode === 'pedidos') {
+                    renderOrders();
+                } else {
+                    renderPurchasingBySupplier();
+                }
+            }
+
             function renderOrders() {
                 const list = pedidos.filter(matchFilter);
                 if (!list.length) {
@@ -1266,18 +1367,73 @@ $isAdmin = ($role === 'admin');
 
                 ordersEl.innerHTML = list.map(p => {
                     const est = p.estado || 'enviado';
-                    const items = (p.items || []).map(it => {
-                        const prod = catMap[it.codigo];
-                        const name = prod ? prod.nombre : it.codigo;
-                        const unit = prod ? (prod.unidad || 'und') : '';
-                        return `<span class="item-pill"><b>${fmtNum(it.cantidad)} ${escapeHtml(unit)}</b> · ${escapeHtml(name)}</span>`;
-                    }).join('');
+                    const isExpanded = !!expandedOrders[p.request_id];
                     const initial = escapeHtml((p.autor || '?').charAt(0).toUpperCase());
+
+                    let itemsHtml = '';
+                    if (!isExpanded) {
+                        const pills = (p.items || []).map(it => {
+                            const prod = catMap[it.codigo];
+                            const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                            const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
+                            const priceText = (it.precio > 0) ? ` · <b>S/ ${fmtNum(it.precio)}</b>` : '';
+                            return `<span class="item-pill"><b>${fmtNum(it.cantidad)} ${escapeHtml(unit)}</b> · ${escapeHtml(name)}${priceText}</span>`;
+                        }).join('');
+                        itemsHtml = `<div class="oc-items">${pills || '<span class="oc-totals">Sin ítems</span>'}</div>`;
+                    } else {
+                        const rows = (p.items || []).map((it, idx) => {
+                            const prod = catMap[it.codigo];
+                            const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                            const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
+                            const defaultProv = prod ? (prod.proveedor || 'Otro') : (it.proveedor || 'Otro');
+                            const prov = it.proveedor || defaultProv;
+                            const price = (it.precio !== undefined && it.precio > 0) ? it.precio : '';
+                            const cant = Number(it.cantidad) || 0;
+                            const subtotal = (it.subtotal !== undefined) ? it.subtotal : (cant * (Number(price) || 0));
+
+                            const hist = priceHistMap[it.codigo];
+                            const histTag = hist ? `<span class="hist-ref" title="Última compra ${fmtDate(hist.fecha)}">Ref: S/ ${fmtNum(hist.precio)}</span>` : '<span class="hist-ref">—</span>';
+
+                            return `
+                            <tr>
+                                <td><b>${escapeHtml(name)}</b></td>
+                                <td>${fmtNum(cant)} ${escapeHtml(unit)}</td>
+                                <td><input class="prov-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(prov)}"></td>
+                                <td>${histTag}</td>
+                                <td><input type="number" step="0.1" min="0" class="price-inp" data-req="${p.request_id}" data-idx="${idx}" value="${price}" placeholder="0.00"></td>
+                                <td style="text-align:right;font-weight:700;color:var(--gold-soft)">S/ ${fmtNum(subtotal || 0)}</td>
+                            </tr>`;
+                        }).join('');
+
+                        itemsHtml = `
+                        <div style="overflow-x:auto;margin-top:12px;">
+                            <table class="order-table">
+                                <thead>
+                                    <tr>
+                                        <th>Insumo</th>
+                                        <th>Cantidad</th>
+                                        <th>Proveedor</th>
+                                        <th>Último Precio</th>
+                                        <th>Precio Unit. (S/)</th>
+                                        <th style="text-align:right">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                                <button class="btn btn-gold btn-sm" onclick="saveOrderPrices('${p.request_id}')">💾 Guardar Precios y Proveedores</button>
+                            </div>
+                        </div>`;
+                    }
+
                     const acts = [];
+                    acts.push(`<button class="btn btn-sm btn-ghost" onclick="toggleExpand('${p.request_id}')">${isExpanded ? '👁️ Ver Resumen' : '✏️ Detalle de Compra'}</button>`);
                     if (est === 'enviado') acts.push(`<button class="btn btn-sm btn-prep" onclick="setEstado('${p.request_id}','preparacion')">Marcar en preparación</button>`);
                     if (est === 'enviado' || est === 'preparacion') acts.push(`<button class="btn btn-sm btn-done" onclick="setEstado('${p.request_id}','completado')">Completar</button>`);
                     if (est !== 'anulado' && est !== 'completado') acts.push(`<button class="btn btn-sm btn-void" onclick="setEstado('${p.request_id}','anulado')">Anular</button>`);
                     if (est === 'completado' || est === 'anulado') acts.push(`<button class="btn btn-sm" onclick="setEstado('${p.request_id}','enviado')">Reabrir</button>`);
+
+                    const totalMontoText = (p.total_monto > 0) ? ` · Costo total: <strong style="color:var(--gold-soft)">S/ ${fmtNum(p.total_monto)}</strong>` : '';
 
                     return `
                         <div class="order-card">
@@ -1288,15 +1444,164 @@ $isAdmin = ($role === 'admin');
                                 </div>
                                 <span class="estado ${est}">${ESTADO_LABEL[est] || est}</span>
                             </div>
-                            <div class="oc-items">${items || '<span class="oc-totals">Sin ítems</span>'}</div>
+                            ${itemsHtml}
                             ${p.nota ? `<div class="oc-note">“${escapeHtml(p.nota)}”</div>` : ''}
                             <div class="oc-foot">
-                                <div class="oc-totals"><strong>${p.total_lineas ?? (p.items || []).length}</strong> insumos · <strong>${fmtNum(p.total_unidades || 0)}</strong> unidades</div>
+                                <div class="oc-totals"><strong>${p.total_lineas ?? (p.items || []).length}</strong> insumos · <strong>${fmtNum(p.total_unidades || 0)}</strong> unidades${totalMontoText}</div>
                                 <div class="oc-actions">${acts.join('')}</div>
                             </div>
                         </div>`;
                 }).join('');
             }
+
+            function renderPurchasingBySupplier() {
+                if (!purchasingEl) return;
+                const list = pedidos.filter(matchFilter);
+                if (!list.length) {
+                    purchasingEl.innerHTML = `<div class="empty"><p>No hay pedidos en esta vista para generar hoja de compras.</p></div>`;
+                    return;
+                }
+
+                const provGroups = {};
+
+                list.forEach(p => {
+                    (p.items || []).forEach(it => {
+                        const prod = catMap[it.codigo];
+                        const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                        const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
+                        const prov = it.proveedor || (prod ? (prod.proveedor || 'Otro') : 'Otro');
+                        const cant = Number(it.cantidad) || 0;
+
+                        if (!provGroups[prov]) {
+                            provGroups[prov] = {};
+                        }
+                        if (!provGroups[prov][it.codigo]) {
+                            provGroups[prov][it.codigo] = {
+                                codigo: it.codigo,
+                                nombre: name,
+                                unidad: unit,
+                                cantidadTotal: 0,
+                                autores: new Set(),
+                                precio: it.precio || 0
+                            };
+                        }
+                        provGroups[prov][it.codigo].cantidadTotal += cant;
+                        if (p.autor) provGroups[prov][it.codigo].autores.add(p.autor);
+                    });
+                });
+
+                const provKeys = Object.keys(provGroups).sort();
+                if (!provKeys.length) {
+                    purchasingEl.innerHTML = `<div class="empty"><p>No hay insumos solicitados.</p></div>`;
+                    return;
+                }
+
+                purchasingEl.innerHTML = provKeys.map(provName => {
+                    const items = Object.values(provGroups[provName]);
+
+                    const tableRows = items.map(it => {
+                        const hist = priceHistMap[it.codigo];
+                        const auts = Array.from(it.autores).map(a => escapeHtml(a)).join(', ');
+                        const histTag = hist ? `S/ ${fmtNum(hist.precio)}` : '—';
+
+                        return `
+                        <tr>
+                            <td><b>${escapeHtml(it.nombre)}</b></td>
+                            <td><b style="color:var(--gold-soft)">${fmtNum(it.cantidadTotal)} ${escapeHtml(it.unidad)}</b></td>
+                            <td><span style="font-size:11.5px;color:var(--muted)">${auts}</span></td>
+                            <td><span class="hist-ref">${histTag}</span></td>
+                        </tr>`;
+                    }).join('');
+
+                    const waLines = [`*PEDIDO DE INSUMOS - MUHU*`, `_Proveedor: ${provName}_`, ``];
+                    items.forEach(it => {
+                        waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}`);
+                    });
+                    waLines.push(``);
+                    waLines.push(`_Enviado desde pedidos.muhucafeteria.com_`);
+                    const waText = waLines.join('\n');
+
+                    return `
+                    <div class="prov-card">
+                        <div class="prov-card-head">
+                            <div class="prov-title">
+                                <span>🏬 ${escapeHtml(provName)}</span>
+                                <span style="font-size:12px;color:var(--muted);font-weight:500">(${items.length} insumos solicitados)</span>
+                            </div>
+                            <button class="btn-whatsapp" onclick="copyWhatsAppText(this, \`${encodeURIComponent(waText)}\`)">
+                                💬 Copiar para WhatsApp
+                            </button>
+                        </div>
+                        <div style="overflow-x:auto">
+                            <table class="order-table">
+                                <thead>
+                                    <tr>
+                                        <th>Insumo</th>
+                                        <th>Cantidad Total</th>
+                                        <th>Solicitado por</th>
+                                        <th>Último Precio Ref</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${tableRows}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            window.toggleExpand = function(id) {
+                expandedOrders[id] = !expandedOrders[id];
+                renderOrders();
+            };
+
+            window.saveOrderPrices = async function(request_id) {
+                const p = pedidos.find(x => x.request_id === request_id);
+                if (!p) return;
+
+                const itemsUpdate = (p.items || []).map((it, idx) => {
+                    const pInp = document.querySelector(`.price-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const prInp = document.querySelector(`.prov-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const precio = pInp ? (parseFloat(pInp.value) || 0) : (it.precio || 0);
+                    const proveedor = prInp ? prInp.value.trim() : (it.proveedor || 'Otro');
+                    return {
+                        codigo: it.codigo,
+                        precio: precio,
+                        proveedor: proveedor
+                    };
+                });
+
+                try {
+                    const r = await fetch('api.php?action=guardar_precios', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ request_id, items: itemsUpdate })
+                    });
+                    const data = await r.json();
+                    if (r.ok && data.success) {
+                        showAlert(true, 'Precios guardados', 'Los precios y proveedores del pedido se han actualizado correctamente.');
+                        await loadPedidos();
+                    } else {
+                        throw new Error(data.error || 'No se pudieron guardar los precios.');
+                    }
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
+
+            window.copyWhatsAppText = function(btn, encodedText) {
+                const text = decodeURIComponent(encodedText);
+                navigator.clipboard.writeText(text).then(() => {
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = '✅ ¡Copiado!';
+                    btn.style.background = '#075e54';
+                    setTimeout(() => {
+                        btn.innerHTML = orig;
+                        btn.style.background = '#128c7e';
+                    }, 2500);
+                }).catch(() => {
+                    alert('No se pudo copiar automáticamente.');
+                });
+            };
 
             window.setEstado = async (request_id, estado) => {
                 try {
@@ -1310,7 +1615,7 @@ $isAdmin = ($role === 'admin');
                         const p = pedidos.find(x => x.request_id === request_id);
                         if (p) { p.estado = estado; p.actualizado_en = new Date().toISOString(); }
                         renderStats();
-                        renderOrders();
+                        renderMain();
                     } else {
                         throw new Error(data.error || 'No se pudo actualizar.');
                     }
@@ -1328,6 +1633,7 @@ $isAdmin = ($role === 'admin');
             refresh();
             pollTimer = setInterval(refresh, 25000);
         }
+
     </script>
 </body>
 </html>
