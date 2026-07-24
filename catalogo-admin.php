@@ -96,6 +96,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Ítem eliminado permanentemente.';
         }
     }
+
+    // ── Guardar URL de Google Sheets ────────────────────────────
+    if ($accion === 'guardar_url') {
+        $url = trim($_POST['sheets_url'] ?? '');
+        $cfg = ['sheets_url' => $url];
+        file_put_contents(__DIR__ . '/data/catalogo-config.json', json_encode($cfg));
+        $msg = $url ? 'URL de Google Sheets guardada.' : 'URL eliminada.';
+    }
+
+    // ── Sincronizar desde Google Sheets ────────────────────────
+    if ($accion === 'sync_sheets') {
+        $cfg_file = __DIR__ . '/data/catalogo-config.json';
+        $cfg_data = is_file($cfg_file) ? json_decode(file_get_contents($cfg_file), true) : [];
+        $sheets_url = trim($cfg_data['sheets_url'] ?? ($_POST['sheets_url'] ?? ''));
+
+        // Convertir URL de Google Sheets a CSV export
+        if (preg_match('#/spreadsheets/d/([a-zA-Z0-9_-]+)#', $sheets_url, $m)) {
+            $sheet_id  = $m[1];
+            // Detectar gid si viene en la URL
+            preg_match('#[#&?]gid=([0-9]+)#', $sheets_url, $mg);
+            $gid = $mg[1] ?? '0';
+            $csv_url = "https://docs.google.com/spreadsheets/d/{$sheet_id}/export?format=csv&gid={$gid}";
+        } else {
+            $csv_url = $sheets_url; // Asumir que ya es CSV directo
+        }
+
+        $ctx = stream_context_create(['http' => ['timeout' => 15, 'follow_location' => true,
+            'header' => "User-Agent: MUHU-Pedidos/1.0\r\n"]]);
+        $csv_raw = @file_get_contents($csv_url, false, $ctx);
+        if ($csv_raw === false) {
+            $err = 'No se pudo descargar la hoja. Verifica que esté publicada como «Cualquiera con el enlace puede ver».';
+        } else {
+            [$ok, $err, $msg] = importar_csv_string($db, $csv_raw);
+        }
+    }
+
+    // ── Importar CSV/Excel subido ───────────────────────────────
+    if ($accion === 'upload_csv' && isset($_FILES['archivo'])) {
+        $file = $_FILES['archivo'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $err = 'Error al subir el archivo (código ' . $file['error'] . ').';
+        } else {
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, ['csv', 'txt'])) {
+                $err = 'Solo se aceptan archivos .csv. Exporta tu Excel como CSV primero (Archivo → Guardar como → CSV).';
+            } else {
+                $csv_raw = file_get_contents($file['tmp_name']);
+                // Detectar y convertir encoding
+                $enc = mb_detect_encoding($csv_raw, ['UTF-8','ISO-8859-1','Windows-1252'], true);
+                if ($enc && $enc !== 'UTF-8') $csv_raw = mb_convert_encoding($csv_raw, 'UTF-8', $enc);
+                [$ok, $err, $msg] = importar_csv_string($db, $csv_raw);
+            }
+        }
+    }
+}
+
+/**
+ * Parsea un string CSV y hace upsert en la tabla catalogo.
+ * Columnas esperadas (en cualquier orden): codigo, nombre, unidad, categoria, proveedor
+ * @return array [bool $ok, string $err, string $msg]
+ */
+function importar_csv_string(PDO $db, string $csv): array {
+    // Limpiar BOM UTF-8
+    $csv = ltrim($csv, "\xEF\xBB\xBF");
+    $lines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $csv)));
+    if (count($lines) < 2) return [false, 'El archivo está vacío o tiene menos de 2 filas.', ''];
+
+    // Detectar separador (coma o punto y coma)
+    $first = $lines[0];
+    $sep   = substr_count($first, ';') >= substr_count($first, ',') ? ';' : ',';
+
+    $header = array_map(fn($h) => mb_strtolower(trim($h, ' "\'')), str_getcsv($first, $sep));
+
+    // Mapear columnas (flexible: acepta variaciones)
+    $map = [];
+    foreach ($header as $i => $h) {
+        if (str_contains($h, 'cod'))  $map['codigo']    = $i;
+        if (str_contains($h, 'nom'))  $map['nombre']    = $i;
+        if (str_contains($h, 'uni'))  $map['unidad']    = $i;
+        if (str_contains($h, 'cat'))  $map['categoria'] = $i;
+        if (str_contains($h, 'prov')) $map['proveedor'] = $i;
+    }
+    $req = ['codigo','nombre','unidad','categoria'];
+    foreach ($req as $r) {
+        if (!isset($map[$r])) return [false, "No se encontró la columna «{$r}» en el archivo. Encabezados detectados: " . implode(', ', $header), ''];
+    }
+
+    $ins = $db->prepare('INSERT OR REPLACE INTO catalogo (codigo,nombre,unidad,categoria,proveedor,activo) VALUES (?,?,?,?,?,1)');
+    $ok_count = 0; $skip = 0;
+    array_shift($lines); // quitar encabezado
+    foreach ($lines as $line) {
+        if (trim($line) === '') continue;
+        $cols = str_getcsv($line, $sep);
+        $codigo    = strtoupper(trim($cols[$map['codigo']]    ?? ''));
+        $nombre    = trim($cols[$map['nombre']]    ?? '');
+        $unidad    = trim($cols[$map['unidad']]    ?? '');
+        $categoria = trim($cols[$map['categoria']] ?? '');
+        $proveedor = trim($cols[$map['proveedor']] ?? 'Otro') ?: 'Otro';
+        if (!$codigo || !$nombre || !preg_match('/^[A-Z0-9\-]+$/u', $codigo)) { $skip++; continue; }
+        $ins->execute([$codigo, $nombre, $unidad, $categoria, $proveedor]);
+        $ok_count++;
+    }
+    return [true, '', "✅ {$ok_count} ítems importados/actualizados" . ($skip ? ", {$skip} filas ignoradas (código inválido o vacío)." : '.')];
 }
 
 // ── GET ─────────────────────────────────────────────────────────
@@ -109,6 +212,11 @@ if (isset($_GET['editar'])) {
     $st->execute([$_GET['editar']]);
     $editar = $st->fetch() ?: null;
 }
+
+// Cargar URL guardada de Google Sheets
+$cfg_file  = __DIR__ . '/data/catalogo-config.json';
+$cfg_saved = is_file($cfg_file) ? json_decode(file_get_contents($cfg_file), true) : [];
+$sheets_url_saved = $cfg_saved['sheets_url'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -313,6 +421,55 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
                 <?php endif; ?>
             </div>
         </form>
+    </div>
+
+    <!-- ── Panel de importación ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;">
+
+        <!-- Google Sheets -->
+        <div class="form-card" style="margin-bottom:0;">
+            <h3>🔗 Sincronizar desde Google Sheets</h3>
+            <p style="color:var(--muted);font-size:.83rem;margin-bottom:14px;">
+                Pega el link de tu Google Sheet. La hoja debe tener columnas:
+                <code style="background:var(--surface-2);padding:2px 6px;border-radius:5px;font-size:.8rem;">codigo, nombre, unidad, categoria, proveedor</code>
+                y estar compartida como "Cualquiera con el enlace puede ver".
+            </p>
+            <form method="POST" style="display:flex;flex-direction:column;gap:10px;">
+                <input type="hidden" name="accion" value="guardar_url">
+                <div class="field">
+                    <label>URL de Google Sheets</label>
+                    <input type="text" name="sheets_url"
+                        value="<?= htmlspecialchars($sheets_url_saved) ?>"
+                        placeholder="https://docs.google.com/spreadsheets/d/..." style="font-size:.82rem;">
+                </div>
+                <button type="submit" class="btn btn-ghost" style="align-self:flex-start;">💾 Guardar URL</button>
+            </form>
+            <?php if ($sheets_url_saved): ?>
+            <form method="POST" style="margin-top:12px;">
+                <input type="hidden" name="accion" value="sync_sheets">
+                <button type="submit" class="btn btn-gold">🔄 Sincronizar ahora</button>
+            </form>
+            <?php endif; ?>
+        </div>
+
+        <!-- Subir CSV -->
+        <div class="form-card" style="margin-bottom:0;">
+            <h3>📤 Subir archivo CSV</h3>
+            <p style="color:var(--muted);font-size:.83rem;margin-bottom:14px;">
+                Exporta tu Excel como <strong>CSV</strong> (Archivo → Guardar como → CSV UTF-8).
+                El archivo debe tener encabezados:
+                <code style="background:var(--surface-2);padding:2px 6px;border-radius:5px;font-size:.8rem;">codigo, nombre, unidad, categoria, proveedor</code>
+            </p>
+            <form method="POST" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:10px;">
+                <input type="hidden" name="accion" value="upload_csv">
+                <div class="field">
+                    <label>Archivo CSV</label>
+                    <input type="file" name="archivo" accept=".csv,.txt"
+                        style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:.85rem;color:var(--text);">
+                </div>
+                <button type="submit" class="btn btn-gold" style="align-self:flex-start;">📥 Importar CSV</button>
+            </form>
+        </div>
     </div>
 
     <!-- Tabla -->
