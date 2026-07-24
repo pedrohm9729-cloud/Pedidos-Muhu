@@ -283,6 +283,18 @@ if ($action === 'estado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (($p['request_id'] ?? null) === $id) {
             $all[$i]['estado'] = $estado;
             $all[$i]['actualizado_en'] = date('c');
+
+            // Sincronizar estado de los ítems individuales si se cambia el estado general
+            if ($estado === 'completado') {
+                foreach ($all[$i]['items'] as $j => $it) {
+                    $all[$i]['items'][$j]['estado_item'] = 'comprado';
+                }
+            } else if ($estado === 'enviado') {
+                foreach ($all[$i]['items'] as $j => $it) {
+                    $all[$i]['items'][$j]['estado_item'] = 'pendiente';
+                }
+            }
+
             $found = true;
             break;
         }
@@ -415,6 +427,71 @@ if ($action === 'guardar_precios' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Historial de precios (admin y staff) ─────────────────────────
 if ($action === 'historial_precios') {
     echo json_encode(['historial' => historial_precios_load()]);
+    exit;
+}
+
+// ── Cambiar estado individual de un ítem de pedido (sólo admin) ──────
+if ($action === 'toggle_item_estado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($role !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['error' => 'Acceso restringido al administrador.']);
+        exit;
+    }
+    guard_csrf();
+
+    $in = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = trim(strip_tags($in['request_id'] ?? ''));
+    $codigo = trim(strip_tags($in['codigo'] ?? ''));
+    $estadoItem = $in['estado_item'] ?? 'comprado'; // 'pendiente', 'comprado', 'anulado'
+
+    if ($id === '' || $codigo === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parámetros faltantes.']);
+        exit;
+    }
+
+    $all = pedidos_load();
+    $found = false;
+
+    foreach ($all as $i => $p) {
+        if (($p['request_id'] ?? null) === $id) {
+            $compCount = 0;
+            $totalItems = count($p['items']);
+            foreach ($p['items'] as $j => $it) {
+                if (($it['codigo'] ?? '') === $codigo) {
+                    $all[$i]['items'][$j]['estado_item'] = $estadoItem;
+                }
+                if (($all[$i]['items'][$j]['estado_item'] ?? 'pendiente') === 'comprado') {
+                    $compCount++;
+                }
+            }
+
+            // Auto-actualizar el estado general del pedido según ítems comprados
+            if ($compCount === $totalItems) {
+                $all[$i]['estado'] = 'completado';
+            } else if ($compCount > 0) {
+                $all[$i]['estado'] = 'preparacion';
+            }
+
+            $all[$i]['actualizado_en'] = date('c');
+            $found = true;
+            break;
+        }
+    }
+
+    if (!$found) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Pedido o ítem no encontrado.']);
+        exit;
+    }
+
+    if (!pedidos_save($all)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'No se pudo guardar el estado del ítem.']);
+        exit;
+    }
+
+    echo json_encode(['success' => true]);
     exit;
 }
 

@@ -485,8 +485,13 @@ $isAdmin = ($role === 'admin');
         .item-pill {
             font-size: 12.5px; color: var(--muted); background: var(--bg-2);
             border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px;
+            cursor: pointer; transition: var(--transition); user-select: none;
         }
         .item-pill b { color: var(--gold-soft); font-weight: 700; }
+        .item-pill.done {
+            background: var(--success-dim); border-color: rgba(52,211,153,0.4); color: var(--success); text-decoration: line-through;
+        }
+        .item-pill.done b { color: var(--success); }
         .oc-note {
             margin-top: 11px; font-size: 13px; color: var(--muted); font-style: italic;
             background: var(--bg-2); border-left: 2px solid var(--gold-line); padding: 8px 12px; border-radius: 0 8px 8px 0;
@@ -1377,7 +1382,10 @@ $isAdmin = ($role === 'admin');
                             const name = prod ? prod.nombre : (it.nombre || it.codigo);
                             const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
                             const priceText = (it.precio > 0) ? ` · <b>S/ ${fmtNum(it.precio)}</b>` : '';
-                            return `<span class="item-pill"><b>${fmtNum(it.cantidad)} ${escapeHtml(unit)}</b> · ${escapeHtml(name)}${priceText}</span>`;
+                            const isDone = (it.estado_item === 'comprado');
+                            const cls = isDone ? 'item-pill done' : 'item-pill';
+                            const checkIco = isDone ? '✓ ' : '';
+                            return `<span class="${cls}" onclick="toggleItemState('${p.request_id}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')" title="Clic para marcar como ${isDone ? 'pendiente' : 'comprado'}"><b>${checkIco}${fmtNum(it.cantidad)} ${escapeHtml(unit)}</b> · ${escapeHtml(name)}${priceText}</span>`;
                         }).join('');
                         itemsHtml = `<div class="oc-items">${pills || '<span class="oc-totals">Sin ítems</span>'}</div>`;
                     } else {
@@ -1390,13 +1398,17 @@ $isAdmin = ($role === 'admin');
                             const price = (it.precio !== undefined && it.precio > 0) ? it.precio : '';
                             const cant = Number(it.cantidad) || 0;
                             const subtotal = (it.subtotal !== undefined) ? it.subtotal : (cant * (Number(price) || 0));
+                            const isDone = (it.estado_item === 'comprado');
 
                             const hist = priceHistMap[it.codigo];
                             const histTag = hist ? `<span class="hist-ref" title="Última compra ${fmtDate(hist.fecha)}">Ref: S/ ${fmtNum(hist.precio)}</span>` : '<span class="hist-ref">—</span>';
 
                             return `
-                            <tr>
-                                <td><b>${escapeHtml(name)}</b></td>
+                            <tr style="${isDone ? 'opacity:0.65;background:rgba(52,211,153,0.05)' : ''}">
+                                <td style="text-align:center">
+                                    <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${p.request_id}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
+                                </td>
+                                <td><b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(name)}</b></td>
                                 <td>${fmtNum(cant)} ${escapeHtml(unit)}</td>
                                 <td><input class="prov-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(prov)}"></td>
                                 <td>${histTag}</td>
@@ -1410,6 +1422,7 @@ $isAdmin = ($role === 'admin');
                             <table class="order-table">
                                 <thead>
                                     <tr>
+                                        <th style="width:36px;text-align:center">✓</th>
                                         <th>Insumo</th>
                                         <th>Cantidad</th>
                                         <th>Proveedor</th>
@@ -1429,7 +1442,7 @@ $isAdmin = ($role === 'admin');
                     const acts = [];
                     acts.push(`<button class="btn btn-sm btn-ghost" onclick="toggleExpand('${p.request_id}')">${isExpanded ? '👁️ Ver Resumen' : '✏️ Detalle de Compra'}</button>`);
                     if (est === 'enviado') acts.push(`<button class="btn btn-sm btn-prep" onclick="setEstado('${p.request_id}','preparacion')">Marcar en preparación</button>`);
-                    if (est === 'enviado' || est === 'preparacion') acts.push(`<button class="btn btn-sm btn-done" onclick="setEstado('${p.request_id}','completado')">Completar</button>`);
+                    if (est === 'enviado' || est === 'preparacion') acts.push(`<button class="btn btn-sm btn-done" onclick="setEstado('${p.request_id}','completado')">Completar Todo</button>`);
                     if (est !== 'anulado' && est !== 'completado') acts.push(`<button class="btn btn-sm btn-void" onclick="setEstado('${p.request_id}','anulado')">Anular</button>`);
                     if (est === 'completado' || est === 'anulado') acts.push(`<button class="btn btn-sm" onclick="setEstado('${p.request_id}','enviado')">Reabrir</button>`);
 
@@ -1478,15 +1491,18 @@ $isAdmin = ($role === 'admin');
                         if (!provGroups[prov][it.codigo]) {
                             provGroups[prov][it.codigo] = {
                                 codigo: it.codigo,
+                                requestId: p.request_id,
                                 nombre: name,
                                 unidad: unit,
                                 cantidadTotal: 0,
                                 autores: new Set(),
-                                precio: it.precio || 0
+                                precio: it.precio || 0,
+                                isDone: (it.estado_item === 'comprado')
                             };
                         }
                         provGroups[prov][it.codigo].cantidadTotal += cant;
                         if (p.autor) provGroups[prov][it.codigo].autores.add(p.autor);
+                        if (it.estado_item === 'comprado') provGroups[prov][it.codigo].isDone = true;
                     });
                 });
 
@@ -1503,10 +1519,14 @@ $isAdmin = ($role === 'admin');
                         const hist = priceHistMap[it.codigo];
                         const auts = Array.from(it.autores).map(a => escapeHtml(a)).join(', ');
                         const histTag = hist ? `S/ ${fmtNum(hist.precio)}` : '—';
+                        const isDone = it.isDone;
 
                         return `
-                        <tr>
-                            <td><b>${escapeHtml(it.nombre)}</b></td>
+                        <tr style="${isDone ? 'opacity:0.65;background:rgba(52,211,153,0.05)' : ''}">
+                            <td style="text-align:center">
+                                <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${it.requestId}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
+                            </td>
+                            <td><b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b></td>
                             <td><b style="color:var(--gold-soft)">${fmtNum(it.cantidadTotal)} ${escapeHtml(it.unidad)}</b></td>
                             <td><span style="font-size:11.5px;color:var(--muted)">${auts}</span></td>
                             <td><span class="hist-ref">${histTag}</span></td>
@@ -1515,7 +1535,9 @@ $isAdmin = ($role === 'admin');
 
                     const waLines = [`*PEDIDO DE INSUMOS - MUHU*`, `_Proveedor: ${provName}_`, ``];
                     items.forEach(it => {
-                        waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}`);
+                        if (!it.isDone) {
+                            waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}`);
+                        }
                     });
                     waLines.push(``);
                     waLines.push(`_Enviado desde pedidos.muhucafeteria.com_`);
@@ -1536,6 +1558,7 @@ $isAdmin = ($role === 'admin');
                             <table class="order-table">
                                 <thead>
                                     <tr>
+                                        <th style="width:36px;text-align:center">✓</th>
                                         <th>Insumo</th>
                                         <th>Cantidad Total</th>
                                         <th>Solicitado por</th>
@@ -1548,6 +1571,24 @@ $isAdmin = ($role === 'admin');
                     </div>`;
                 }).join('');
             }
+
+            window.toggleItemState = async function(request_id, codigo, nuevoEstado) {
+                try {
+                    const r = await fetch('api.php?action=toggle_item_estado', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ request_id, codigo, estado_item: nuevoEstado })
+                    });
+                    const data = await r.json();
+                    if (r.ok && data.success) {
+                        await loadPedidos();
+                    } else {
+                        throw new Error(data.error || 'No se pudo actualizar el estado del ítem.');
+                    }
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
 
             window.toggleExpand = function(id) {
                 expandedOrders[id] = !expandedOrders[id];
