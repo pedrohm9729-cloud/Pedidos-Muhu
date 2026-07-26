@@ -848,6 +848,7 @@ $isAdmin = ($role === 'admin');
             <div class="modal-ico" id="alertIcon">✓</div>
             <h3 class="modal-title" id="alertTitle">Estado</h3>
             <p class="modal-desc" id="alertDesc"></p>
+            <div id="alertActionContainer" style="margin-bottom:14px;"></div>
             <button class="modal-btn" id="btnAlertClose">Entendido</button>
         </div>
     </div>
@@ -881,12 +882,14 @@ $isAdmin = ($role === 'admin');
         const alertIcon = document.getElementById('alertIcon');
         const alertTitle = document.getElementById('alertTitle');
         const alertDesc = document.getElementById('alertDesc');
+        const alertActionContainer = document.getElementById('alertActionContainer');
         document.getElementById('btnAlertClose').addEventListener('click', () => alertModal.classList.remove('active'));
-        function showAlert(success, title, msg) {
+        function showAlert(success, title, msg, extraHtml = '') {
             alertIcon.className = 'modal-ico ' + (success ? 'success' : 'error');
             alertIcon.textContent = success ? '✓' : '⚠';
             alertTitle.textContent = title;
             alertDesc.textContent = msg;
+            if (alertActionContainer) alertActionContainer.innerHTML = extraHtml;
             alertModal.classList.add('active');
         }
 
@@ -1119,7 +1122,15 @@ $isAdmin = ($role === 'admin');
             noteTextarea.addEventListener('input', e => { charCount.textContent = `${e.target.value.length} / 300`; });
 
             btnSendOrder.addEventListener('click', async () => {
-                const items = Object.entries(cart).map(([codigo, cantidad]) => ({ codigo, cantidad }));
+                const items = Object.entries(cart).map(([codigo, cantidad]) => {
+                    const prod = catMap[codigo];
+                    return {
+                        codigo,
+                        nombre: prod ? prod.nombre : codigo,
+                        unidad: prod ? (prod.unidad || 'und') : 'und',
+                        cantidad
+                    };
+                });
                 if (!items.length) return;
 
                 btnSendOrder.disabled = true;
@@ -1134,10 +1145,29 @@ $isAdmin = ($role === 'admin');
                     });
                     const data = await r.json();
                     if (r.ok && data.success) {
+                        const folioText = data.folio ? `Folio ${data.folio}` : '';
+                        const waLines = [`*NUEVO PEDIDO DE INSUMOS - MUHU* 📦`];
+                        if (data.folio) waLines.push(`*Folio:* ${data.folio}`);
+                        waLines.push(`*Solicitado por:* ${document.querySelector('.user-meta .name')?.textContent || 'Personal'}`);
+                        waLines.push(`*Detalle:* ${items.length} insumos`);
+                        waLines.push(``);
+                        items.forEach(it => {
+                            waLines.push(`• *${fmtNum(it.cantidad)} ${it.unidad}* - ${it.nombre}`);
+                        });
+                        if (noteTextarea.value.trim()) {
+                            waLines.push(``);
+                            waLines.push(`*Nota:* "${noteTextarea.value.trim()}"`);
+                        }
+                        waLines.push(``);
+                        waLines.push(`_Ver en: https://pedidos.muhucafeteria.com_`);
+
+                        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(waLines.join('\n'))}`;
+                        const waBtnHtml = `<a href="${waUrl}" target="_blank" class="btn-whatsapp" style="justify-content:center;padding:12px;font-size:13.5px;text-decoration:none;border-radius:11px;margin-top:4px;">📲 Notificar por WhatsApp al Admin</a>`;
+
                         if (data.duplicado) {
-                            showAlert(true, 'Pedido ya recibido', `El pedido folio ${data.folio} ya había sido procesado.`);
+                            showAlert(true, 'Pedido ya recibido', `El pedido folio ${data.folio} ya había sido procesado.`, waBtnHtml);
                         } else {
-                            showAlert(true, 'Pedido enviado', `Registrado con éxito. Folio: ${data.folio ?? '—'}.`);
+                            showAlert(true, 'Pedido enviado', `Registrado con éxito. ${folioText}.`, waBtnHtml);
                         }
                         Object.keys(cart).forEach(k => delete cart[k]);
                         noteTextarea.value = '';
@@ -1147,7 +1177,7 @@ $isAdmin = ($role === 'admin');
                         renderCatalog();
                         closeSheet();
                     } else {
-                        throw new Error(data.error || 'Ocurrió un error en el servidor central.');
+                        throw new Error(data.error || 'Ocurrió un error al enviar el pedido.');
                     }
                 } catch (err) {
                     showAlert(false, 'Error al enviar', `${err.message} Vuelve a intentarlo.`);
@@ -1439,7 +1469,28 @@ $isAdmin = ($role === 'admin');
                         </div>`;
                     }
 
+                    const waOrderLines = [`*PEDIDO DE INSUMOS - MUHU* 📦`];
+                    if (p.folio) waOrderLines.push(`*Folio:* ${p.folio}`);
+                    waOrderLines.push(`*Solicitado por:* ${p.autor || 'Personal'}`);
+                    waOrderLines.push(`*Fecha:* ${fmtDate(p.creado_en)}`);
+                    waOrderLines.push(``);
+                    (p.items || []).forEach(it => {
+                        const prod = catMap[it.codigo];
+                        const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                        const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
+                        waOrderLines.push(`• *${fmtNum(it.cantidad)} ${unit}* - ${name}`);
+                    });
+                    if (p.nota) {
+                        waOrderLines.push(``);
+                        waOrderLines.push(`*Nota:* "${p.nota}"`);
+                    }
+                    waOrderLines.push(``);
+                    waOrderLines.push(`_Ver en: https://pedidos.muhucafeteria.com_`);
+
+                    const waOrderUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(waOrderLines.join('\n'))}`;
+
                     const acts = [];
+                    acts.push(`<a href="${waOrderUrl}" target="_blank" class="btn btn-sm btn-whatsapp" style="text-decoration:none;">📲 WhatsApp</a>`);
                     acts.push(`<button class="btn btn-sm btn-ghost" onclick="toggleExpand('${p.request_id}')">${isExpanded ? '👁️ Ver Resumen' : '✏️ Detalle de Compra'}</button>`);
                     if (est === 'enviado') acts.push(`<button class="btn btn-sm btn-prep" onclick="setEstado('${p.request_id}','preparacion')">Marcar en preparación</button>`);
                     if (est === 'enviado' || est === 'preparacion') acts.push(`<button class="btn btn-sm btn-done" onclick="setEstado('${p.request_id}','completado')">Completar Todo</button>`);

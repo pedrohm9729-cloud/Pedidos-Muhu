@@ -198,11 +198,15 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $items = [];
     foreach ($itemsRaw as $item) {
-        $codigo = trim(strip_tags($item['codigo'] ?? ''));
+        $codigo   = trim(strip_tags($item['codigo'] ?? ''));
+        $nombre   = trim(strip_tags($item['nombre'] ?? ''));
+        $unidad   = trim(strip_tags($item['unidad'] ?? 'und'));
         $cantidad = filter_var($item['cantidad'] ?? 0, FILTER_VALIDATE_FLOAT);
         if (!empty($codigo) && preg_match('/^[A-Z0-9\-]+$/i', $codigo) && $cantidad !== false && $cantidad > 0) {
             $items[] = [
                 'codigo'   => $codigo,
+                'nombre'   => $nombre,
+                'unidad'   => $unidad,
                 'cantidad' => round($cantidad, 2)
             ];
         }
@@ -237,7 +241,7 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'items'          => $items,
         'total_lineas'   => count($items),
         'total_unidades' => round($totalUnidades, 2),
-        'estado'         => $ok ? 'enviado' : 'error',
+        'estado'         => 'enviado',
         'creado_en'      => date('c'),
         'actualizado_en' => date('c'),
     ]);
