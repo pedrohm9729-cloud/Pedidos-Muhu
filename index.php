@@ -1588,12 +1588,16 @@ $isAdmin = ($role === 'admin');
                                 unidad: unit,
                                 cantidadTotal: 0,
                                 autores: new Set(),
+                                fechas: new Set(),
+                                isUrgent: false,
                                 precio: it.precio || 0,
                                 isDone: (it.estado_item === 'comprado')
                             };
                         }
                         provGroups[prov][it.codigo].cantidadTotal += cant;
                         if (p.autor) provGroups[prov][it.codigo].autores.add(p.autor);
+                        if (p.creado_en) provGroups[prov][it.codigo].fechas.add(fmtDate(p.creado_en));
+                        if (p.urgente || (p.nota || '').includes('[🚨 URGENTE]')) provGroups[prov][it.codigo].isUrgent = true;
                         if (it.estado_item === 'comprado') provGroups[prov][it.codigo].isDone = true;
                     });
                 });
@@ -1610,6 +1614,7 @@ $isAdmin = ($role === 'admin');
                     const tableRows = items.map(it => {
                         const hist = priceHistMap[it.codigo];
                         const auts = Array.from(it.autores).map(a => escapeHtml(a)).join(', ');
+                        const fchs = Array.from(it.fechas).map(f => escapeHtml(f)).join('<br>');
                         const histTag = hist ? `S/ ${fmtNum(hist.precio)}` : '—';
                         const isDone = it.isDone;
 
@@ -1618,9 +1623,10 @@ $isAdmin = ($role === 'admin');
                             <td style="text-align:center">
                                 <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${it.requestId}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
                             </td>
-                            <td><b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b></td>
+                            <td><b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b> ${it.isUrgent ? '<span class="badge-urgent" style="font-size:10px;padding:2px 6px;margin-left:4px;">🚨 URGENTE</span>' : ''}</td>
                             <td><b style="color:var(--gold-soft)">${fmtNum(it.cantidadTotal)} ${escapeHtml(it.unidad)}</b></td>
                             <td><span style="font-size:11.5px;color:var(--muted)">${auts}</span></td>
+                            <td><span style="font-size:11.5px;color:var(--text);font-weight:500;">${fchs || '—'}</span></td>
                             <td><span class="hist-ref">${histTag}</span></td>
                         </tr>`;
                     }).join('');
@@ -1628,7 +1634,7 @@ $isAdmin = ($role === 'admin');
                     const waLines = [`*PEDIDO DE INSUMOS - MUHU*`, `_Proveedor: ${provName}_`, ``];
                     items.forEach(it => {
                         if (!it.isDone) {
-                            waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}`);
+                            waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}${it.isUrgent ? ' 🚨[URGENTE]' : ''}`);
                         }
                     });
                     waLines.push(``);
@@ -1654,6 +1660,7 @@ $isAdmin = ($role === 'admin');
                                         <th>Insumo</th>
                                         <th>Cantidad Total</th>
                                         <th>Solicitado por</th>
+                                        <th>Fecha de Pedido</th>
                                         <th>Último Precio Ref</th>
                                     </tr>
                                 </thead>
