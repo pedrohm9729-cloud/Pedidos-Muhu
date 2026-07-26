@@ -173,12 +173,14 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $in = json_decode(file_get_contents('php://input'), true) ?: [];
 
-    // 1. Sanitizar nota (máximo 300 caracteres, sin HTML)
+    // 1. Sanitizar nota y urgente
+    $urgente = !empty($in['urgente']);
     $notaRaw = $in['nota'] ?? '';
     $nota = trim(strip_tags($notaRaw));
     if (mb_strlen($nota) > 300) {
         $nota = mb_substr($nota, 0, 300);
     }
+    $notaCentral = ($urgente ? '[🚨 URGENTE] ' : '') . $nota;
 
     // 2. Validar y sanitizar request_id (UUID único generado por el JS cliente)
     $requestIdRaw = $in['request_id'] ?? '';
@@ -221,7 +223,7 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $autor = $_SESSION['user']['name'] ?? 'App Pedidos';
     $payload = [
         'autor'      => $autor,
-        'nota'       => $nota,
+        'nota'       => $notaCentral,
         'request_id' => $requestId,
         'items'      => $items,
     ];
@@ -238,6 +240,7 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'autor'          => $autor,
         'usuario'        => $username,
         'nota'           => $nota,
+        'urgente'        => $urgente,
         'items'          => $items,
         'total_lineas'   => count($items),
         'total_unidades' => round($totalUnidades, 2),

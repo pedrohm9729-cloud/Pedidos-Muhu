@@ -559,6 +559,23 @@ $isAdmin = ($role === 'admin');
             font-size: 11px; color: var(--muted-2); background: var(--bg-2); padding: 2px 6px; border-radius: 5px; font-weight: 500;
         }
 
+        /* ── Urgent Order Styles ── */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(240, 101, 90, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(240, 101, 90, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(240, 101, 90, 0); }
+        }
+        .order-card.is-urgent {
+            border: 2px solid var(--danger) !important;
+            background: linear-gradient(180deg, rgba(240,101,90,0.12) 0%, var(--surface) 100%) !important;
+            box-shadow: 0 4px 22px rgba(240,101,90,0.25) !important;
+        }
+        .badge-urgent {
+            background: var(--danger); color: #fff; font-weight: 800; font-size: 11.5px;
+            padding: 3px 10px; border-radius: 999px; letter-spacing: 0.5px; text-transform: uppercase;
+            display: inline-flex; align-items: center; gap: 4px; animation: pulse-red 2s infinite;
+        }
+
         /* ── Alert modal ───────────────────────────── */
         .modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 300;
@@ -788,6 +805,10 @@ $isAdmin = ($role === 'admin');
                             <div class="note-head"><span>Notas especiales</span><span id="charCount">0 / 300</span></div>
                             <textarea id="noteTextarea" class="note-area" placeholder="Instrucciones adicionales para el pedido..." maxlength="300"></textarea>
                         </div>
+                        <label class="urgent-box" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;background:rgba(240,101,90,0.12);border:1px solid rgba(240,101,90,0.35);padding:10px 14px;border-radius:11px;color:var(--danger);font-weight:700;font-size:13.5px;user-select:none;">
+                            <input type="checkbox" id="chkUrgente" style="width:18px;height:18px;accent-color:var(--danger);cursor:pointer;">
+                            <span>🚨 Marcar como pedido URGENTE</span>
+                        </label>
                         <div class="order-totals">
                             <span>Total</span>
                             <span><strong id="totLines">0</strong> insumos · <strong id="totUnits">0</strong> unidades</span>
@@ -1122,6 +1143,7 @@ $isAdmin = ($role === 'admin');
             noteTextarea.addEventListener('input', e => { charCount.textContent = `${e.target.value.length} / 300`; });
 
             btnSendOrder.addEventListener('click', async () => {
+                const isUrgente = !!document.getElementById('chkUrgente')?.checked;
                 const items = Object.entries(cart).map(([codigo, cantidad]) => {
                     const prod = catMap[codigo];
                     return {
@@ -1141,12 +1163,17 @@ $isAdmin = ($role === 'admin');
                     const r = await fetch('api.php?action=enviar', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ request_id: requestId, nota: noteTextarea.value, items })
+                        body: JSON.stringify({ request_id: requestId, nota: noteTextarea.value, urgente: isUrgente, items })
                     });
                     const data = await r.json();
                     if (r.ok && data.success) {
                         const folioText = data.folio ? `Folio ${data.folio}` : '';
-                        const waLines = [`*NUEVO PEDIDO DE INSUMOS - MUHU* 📦`];
+                        const waLines = [];
+                        if (isUrgente) {
+                            waLines.push(`🚨🚨 *¡ATENCIÓN: PEDIDO URGENTE!* 🚨🚨`);
+                            waLines.push(``);
+                        }
+                        waLines.push(`*NUEVO PEDIDO DE INSUMOS - MUHU* 📦`);
                         if (data.folio) waLines.push(`*Folio:* ${data.folio}`);
                         waLines.push(`*Solicitado por:* ${document.querySelector('.user-meta .name')?.textContent || 'Personal'}`);
                         waLines.push(`*Detalle:* ${items.length} insumos`);
@@ -1167,10 +1194,11 @@ $isAdmin = ($role === 'admin');
                         if (data.duplicado) {
                             showAlert(true, 'Pedido ya recibido', `El pedido folio ${data.folio} ya había sido procesado.`, waBtnHtml);
                         } else {
-                            showAlert(true, 'Pedido enviado', `Registrado con éxito. ${folioText}.`, waBtnHtml);
+                            showAlert(true, isUrgente ? '🚨 Pedido URGENTE Enviado' : 'Pedido enviado', `Registrado con éxito. ${folioText}.`, waBtnHtml);
                         }
                         Object.keys(cart).forEach(k => delete cart[k]);
                         noteTextarea.value = '';
+                        if (document.getElementById('chkUrgente')) document.getElementById('chkUrgente').checked = false;
                         charCount.textContent = '0 / 300';
                         requestId = crypto.randomUUID();
                         updateOrder();
@@ -1254,18 +1282,22 @@ $isAdmin = ($role === 'admin');
                 }
                 el.innerHTML = pedidos.map(p => {
                     const est   = p.estado || 'enviado';
+                    const isUrgent = !!p.urgente || (p.nota || '').includes('[🚨 URGENTE]');
                     const items = (p.items || []).map(it => {
                         const prod = catMap[it.codigo];
-                        const name = prod ? prod.nombre : it.codigo;
-                        const unit = prod ? (prod.unidad || 'und') : '';
+                        const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                        const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
                         return `<span class="item-pill"><b>${fmtNum(it.cantidad)} ${escapeHtml(unit)}</b> · ${escapeHtml(name)}</span>`;
                     }).join('');
-                    return `<div class="order-card">
+                    return `<div class="order-card ${isUrgent ? 'is-urgent' : ''}">
                         <div class="oc-head">
                             <div class="oc-id">
                                 <div class="oc-sub">${p.folio ? 'Folio ' + escapeHtml(String(p.folio)) + ' · ' : ''}${fmtDate(p.creado_en)}</div>
                             </div>
-                            <span class="estado ${ESTADO_CLS[est] || est}">${ESTADO_LABEL[est] || est}</span>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                ${isUrgent ? '<span class="badge-urgent">🚨 URGENTE</span>' : ''}
+                                <span class="estado ${ESTADO_CLS[est] || est}">${ESTADO_LABEL[est] || est}</span>
+                            </div>
                         </div>
                         <div class="oc-items">${items || '<span class="oc-totals">Sin ítems</span>'}</div>
                         ${p.nota ? `<div class="oc-note">"${escapeHtml(p.nota)}"</div>` : ''}
@@ -1469,7 +1501,13 @@ $isAdmin = ($role === 'admin');
                         </div>`;
                     }
 
-                    const waOrderLines = [`*PEDIDO DE INSUMOS - MUHU* 📦`];
+                    const isUrgent = !!p.urgente || (p.nota || '').includes('[🚨 URGENTE]');
+                    const waOrderLines = [];
+                    if (isUrgent) {
+                        waOrderLines.push(`🚨🚨 *¡ATENCIÓN: PEDIDO URGENTE!* 🚨🚨`);
+                        waOrderLines.push(``);
+                    }
+                    waOrderLines.push(`*PEDIDO DE INSUMOS - MUHU* 📦`);
                     if (p.folio) waOrderLines.push(`*Folio:* ${p.folio}`);
                     waOrderLines.push(`*Solicitado por:* ${p.autor || 'Personal'}`);
                     waOrderLines.push(`*Fecha:* ${fmtDate(p.creado_en)}`);
@@ -1500,13 +1538,16 @@ $isAdmin = ($role === 'admin');
                     const totalMontoText = (p.total_monto > 0) ? ` · Costo total: <strong style="color:var(--gold-soft)">S/ ${fmtNum(p.total_monto)}</strong>` : '';
 
                     return `
-                        <div class="order-card">
+                        <div class="order-card ${isUrgent ? 'is-urgent' : ''}">
                             <div class="oc-head">
                                 <div class="oc-id">
                                     <div class="oc-author"><span class="who">${initial}</span>${escapeHtml(p.autor || 'Personal')}</div>
                                     <div class="oc-sub">${p.folio ? 'Folio ' + escapeHtml(String(p.folio)) + ' · ' : ''}${fmtDate(p.creado_en)}</div>
                                 </div>
-                                <span class="estado ${est}">${ESTADO_LABEL[est] || est}</span>
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    ${isUrgent ? '<span class="badge-urgent">🚨 URGENTE</span>' : ''}
+                                    <span class="estado ${est}">${ESTADO_LABEL[est] || est}</span>
+                                </div>
                             </div>
                             ${itemsHtml}
                             ${p.nota ? `<div class="oc-note">“${escapeHtml(p.nota)}”</div>` : ''}
