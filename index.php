@@ -1441,7 +1441,8 @@ $isAdmin = ($role === 'admin');
                     if (!isExpanded) {
                         const pills = (p.items || []).map(it => {
                             const prod = catMap[it.codigo];
-                            const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                            let name = prod ? prod.nombre : (it.nombre || '');
+                            if (!name) name = it.codigo.startsWith('LIBRE-') ? `Ítem Libre (${it.codigo})` : it.codigo;
                             const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
                             const priceText = (it.precio > 0) ? ` · <b>S/ ${fmtNum(it.precio)}</b>` : '';
                             const isDone = (it.estado_item === 'comprado');
@@ -1453,7 +1454,8 @@ $isAdmin = ($role === 'admin');
                     } else {
                         const rows = (p.items || []).map((it, idx) => {
                             const prod = catMap[it.codigo];
-                            const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                            let name = prod ? prod.nombre : (it.nombre || '');
+                            if (!name) name = it.codigo.startsWith('LIBRE-') ? `Ítem Libre (${it.codigo})` : it.codigo;
                             const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
                             const defaultProv = prod ? (prod.proveedor || 'Otro') : (it.proveedor || 'Otro');
                             const prov = it.proveedor || defaultProv;
@@ -1514,7 +1516,8 @@ $isAdmin = ($role === 'admin');
                     waOrderLines.push(``);
                     (p.items || []).forEach(it => {
                         const prod = catMap[it.codigo];
-                        const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                        let name = prod ? prod.nombre : (it.nombre || '');
+                        if (!name) name = it.codigo.startsWith('LIBRE-') ? `Ítem Libre (${it.codigo})` : it.codigo;
                         const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
                         waOrderLines.push(`• *${fmtNum(it.cantidad)} ${unit}* - ${name}`);
                     });
@@ -1550,7 +1553,7 @@ $isAdmin = ($role === 'admin');
                                 </div>
                             </div>
                             ${itemsHtml}
-                            ${p.nota ? `<div class="oc-note">“${escapeHtml(p.nota)}”</div>` : ''}
+                            ${p.nota ? `<div class="oc-note">💬 <b>Nota / Instrucciones:</b> “${escapeHtml(p.nota)}”</div>` : ''}
                             <div class="oc-foot">
                                 <div class="oc-totals"><strong>${p.total_lineas ?? (p.items || []).length}</strong> insumos · <strong>${fmtNum(p.total_unidades || 0)}</strong> unidades${totalMontoText}</div>
                                 <div class="oc-actions">${acts.join('')}</div>
@@ -1572,7 +1575,8 @@ $isAdmin = ($role === 'admin');
                 list.forEach(p => {
                     (p.items || []).forEach(it => {
                         const prod = catMap[it.codigo];
-                        const name = prod ? prod.nombre : (it.nombre || it.codigo);
+                        let name = prod ? prod.nombre : (it.nombre || '');
+                        if (!name) name = it.codigo.startsWith('LIBRE-') ? `Ítem Libre (${it.codigo})` : it.codigo;
                         const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
                         const prov = it.proveedor || (prod ? (prod.proveedor || 'Otro') : 'Otro');
                         const cant = Number(it.cantidad) || 0;
@@ -1589,6 +1593,7 @@ $isAdmin = ($role === 'admin');
                                 cantidadTotal: 0,
                                 autores: new Set(),
                                 fechas: new Set(),
+                                notas: new Set(),
                                 isUrgent: false,
                                 precio: it.precio || 0,
                                 isDone: (it.estado_item === 'comprado')
@@ -1597,6 +1602,9 @@ $isAdmin = ($role === 'admin');
                         provGroups[prov][it.codigo].cantidadTotal += cant;
                         if (p.autor) provGroups[prov][it.codigo].autores.add(p.autor);
                         if (p.creado_en) provGroups[prov][it.codigo].fechas.add(fmtDate(p.creado_en));
+                        const cleanNota = (p.nota || '').replace('[🚨 URGENTE] ', '').replace('[URGENTE] ', '').trim();
+                        if (cleanNota) provGroups[prov][it.codigo].notas.add(cleanNota);
+
                         if (p.urgente || (p.nota || '').includes('[🚨 URGENTE]')) provGroups[prov][it.codigo].isUrgent = true;
                         if (it.estado_item === 'comprado') provGroups[prov][it.codigo].isDone = true;
                     });
@@ -1615,6 +1623,8 @@ $isAdmin = ($role === 'admin');
                         const hist = priceHistMap[it.codigo];
                         const auts = Array.from(it.autores).map(a => escapeHtml(a)).join(', ');
                         const fchs = Array.from(it.fechas).map(f => escapeHtml(f)).join('<br>');
+                        const nts = Array.from(it.notas).map(n => escapeHtml(n)).join(' · ');
+                        const notaHtml = nts ? `<div style="font-size:11.5px;color:var(--gold-soft);font-style:italic;margin-top:3px;display:flex;align-items:center;gap:4px;">💬 <span>"${nts}"</span></div>` : '';
                         const histTag = hist ? `S/ ${fmtNum(hist.precio)}` : '—';
                         const isDone = it.isDone;
 
@@ -1623,7 +1633,11 @@ $isAdmin = ($role === 'admin');
                             <td style="text-align:center">
                                 <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${it.requestId}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
                             </td>
-                            <td><b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b> ${it.isUrgent ? '<span class="badge-urgent" style="font-size:10px;padding:2px 6px;margin-left:4px;">🚨 URGENTE</span>' : ''}</td>
+                            <td>
+                                <b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b>
+                                ${it.isUrgent ? '<span class="badge-urgent" style="font-size:10px;padding:2px 6px;margin-left:4px;">🚨 URGENTE</span>' : ''}
+                                ${notaHtml}
+                            </td>
                             <td><b style="color:var(--gold-soft)">${fmtNum(it.cantidadTotal)} ${escapeHtml(it.unidad)}</b></td>
                             <td><span style="font-size:11.5px;color:var(--muted)">${auts}</span></td>
                             <td><span style="font-size:11.5px;color:var(--text);font-weight:500;">${fchs || '—'}</span></td>
@@ -1634,7 +1648,9 @@ $isAdmin = ($role === 'admin');
                     const waLines = [`*PEDIDO DE INSUMOS - MUHU*`, `_Proveedor: ${provName}_`, ``];
                     items.forEach(it => {
                         if (!it.isDone) {
-                            waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}${it.isUrgent ? ' 🚨[URGENTE]' : ''}`);
+                            const nts = Array.from(it.notas).join(' · ');
+                            const notaStr = nts ? ` _(Nota: "${nts}")_` : '';
+                            waLines.push(`• *${fmtNum(it.cantidadTotal)} ${it.unidad}* - ${it.nombre}${it.isUrgent ? ' 🚨[URGENTE]' : ''}${notaStr}`);
                         }
                     });
                     waLines.push(``);
