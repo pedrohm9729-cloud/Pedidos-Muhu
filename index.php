@@ -94,6 +94,28 @@ $isAdmin = ($role === 'admin');
         ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; }
         ::-webkit-scrollbar-thumb:hover { background: #4a443a; }
 
+        input[type="date"] {
+            background: #181510 !important;
+            color: #f3e5ab !important;
+            border: 1px solid rgba(201, 160, 82, 0.45) !important;
+            border-radius: 8px !important;
+            padding: 4px 8px !important;
+            font-family: var(--font) !important;
+            font-size: 0.8rem !important;
+            font-weight: 700 !important;
+            outline: none !important;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.4) !important;
+            transition: all 0.2s ease !important;
+        }
+        input[type="date"]:hover, input[type="date"]:focus {
+            border-color: #c9a052 !important;
+            box-shadow: 0 0 8px rgba(201, 160, 82, 0.4) !important;
+        }
+        ::-webkit-calendar-picker-indicator {
+            filter: invert(0.85) sepia(1) saturate(5) hue-rotate(5deg);
+            cursor: pointer;
+        }
+
         /* ── App shell ─────────────────────────────── */
         .app {
             position: relative;
@@ -1689,6 +1711,8 @@ $isAdmin = ($role === 'admin');
                             const hist = priceHistMap[it.codigo];
                             const histTag = hist ? `<span class="hist-ref" title="Última compra ${fmtDate(hist.fecha)}">Ref: S/ ${fmtNum(hist.precio)}</span>` : '<span class="hist-ref">—</span>';
 
+                            const itemDate = it.fecha_entrega || p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
+
                             return `
                             <tr style="${isDone ? 'opacity:0.65;background:rgba(52,211,153,0.05)' : ''}">
                                 <td style="text-align:center">
@@ -1704,6 +1728,7 @@ $isAdmin = ($role === 'admin');
                                     </div>
                                 </td>
                                 <td><input class="prov-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(prov)}"></td>
+                                <td><input type="date" class="item-date-inp" data-req="${p.request_id}" data-idx="${idx}" value="${itemDate}" title="Fecha de entrega de este insumo"></td>
                                 <td>${histTag}</td>
                                 <td><input type="number" step="0.1" min="0" class="price-inp" data-req="${p.request_id}" data-idx="${idx}" value="${price}" placeholder="0.00"></td>
                                 <td style="text-align:right;font-weight:700;color:var(--gold-soft)">S/ ${fmtNum(subtotal || 0)}</td>
@@ -1722,6 +1747,7 @@ $isAdmin = ($role === 'admin');
                                         <th style="min-width:240px;">Insumo / Descripción</th>
                                         <th style="min-width:130px;">Cantidad</th>
                                         <th style="min-width:120px;">Proveedor</th>
+                                        <th style="min-width:135px;">📅 Fecha Entrega</th>
                                         <th>Último Precio</th>
                                         <th style="min-width:100px;">Precio Unit. (S/)</th>
                                         <th style="text-align:right">Subtotal</th>
@@ -2207,6 +2233,7 @@ $isAdmin = ($role === 'admin');
                     const unitInp = document.querySelector(`.unit-inp[data-req="${request_id}"][data-idx="${idx}"]`);
                     const prInp = document.querySelector(`.prov-inp[data-req="${request_id}"][data-idx="${idx}"]`);
                     const priceInp = document.querySelector(`.price-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const dateInp = document.querySelector(`.item-date-inp[data-req="${request_id}"][data-idx="${idx}"]`);
 
                     let nombre = nameInp ? nameInp.value.trim() : (it.nombre || '');
                     if (!nombre) {
@@ -2217,6 +2244,7 @@ $isAdmin = ($role === 'admin');
                     const unidad = unitInp ? unitInp.value.trim() : (it.unidad || 'und');
                     const proveedor = prInp ? prInp.value.trim() : (it.proveedor || 'Otro');
                     const precio = priceInp ? (parseFloat(priceInp.value) || 0) : (it.precio || 0);
+                    const fecha_entrega = dateInp ? dateInp.value : (it.fecha_entrega || p.fecha_entrega || '');
 
                     if (cantidad > 0) {
                         itemsUpdate.push({
@@ -2226,7 +2254,8 @@ $isAdmin = ($role === 'admin');
                             cantidad: cantidad,
                             precio: precio,
                             proveedor: proveedor,
-                            estado_item: it.estado_item || 'pendiente'
+                            estado_item: it.estado_item || 'pendiente',
+                            fecha_entrega: fecha_entrega
                         });
                     }
                 });
@@ -2582,20 +2611,23 @@ $isAdmin = ($role === 'admin');
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const todayIso = (new Date()).toISOString().split('T')[0];
 
-                const ordersByDate = {};
+                const itemsByDate = {};
                 pedidos.forEach(p => {
-                    const delivDate = p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
-                    if (delivDate) {
-                        if (!ordersByDate[delivDate]) ordersByDate[delivDate] = [];
-                        ordersByDate[delivDate].push(p);
-                    }
+                    if (!p.items || p.estado === 'anulado') return;
+                    p.items.forEach(it => {
+                        const delivDate = it.fecha_entrega || p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
+                        if (delivDate) {
+                            if (!itemsByDate[delivDate]) itemsByDate[delivDate] = [];
+                            itemsByDate[delivDate].push({ order: p, item: it });
+                        }
+                    });
                 });
 
                 let html = `
                     <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-bottom:24px;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
                             <div style="display:flex;align-items:center;gap:12px;">
-                                <h3 style="font-size:1.25rem;font-weight:700;color:var(--text);">📅 Calendario de Entregas de Pedidos</h3>
+                                <h3 style="font-size:1.25rem;font-weight:700;color:var(--text);">📅 Calendario de Entregas por Ítem</h3>
                                 <span style="font-size:1.1rem;font-weight:700;color:var(--gold-soft);background:var(--gold-dim);padding:4px 12px;border-radius:20px;border:1px solid var(--gold-line);">${monthNames[month]} ${year}</span>
                             </div>
                             <div style="display:flex;gap:8px;">
@@ -2620,25 +2652,29 @@ $isAdmin = ($role === 'admin');
                     const mStr = String(month + 1).padStart(2, '0');
                     const dayIso = `${year}-${mStr}-${dStr}`;
                     const isToday = (dayIso === todayIso);
-                    const dayOrders = ordersByDate[dayIso] || [];
+                    const dayEntries = itemsByDate[dayIso] || [];
 
                     let cellStyle = "background:var(--bg-card);border:1px solid var(--line);border-radius:12px;min-height:100px;padding:8px;display:flex;flex-direction:column;gap:4px;position:relative;cursor:pointer;";
                     if (isToday) {
-                        cellStyle += "border:2px solid var(--gold);box-shadow:0 0 10px rgba(201,160,82,0.3);";
+                        cellStyle += "border:2px solid var(--gold);box-shadow:0 0 10px rgba(201,160,82,0.35);";
                     }
 
-                    let orderPills = '';
-                    dayOrders.forEach(p => {
-                        const stColor = p.estado === 'completado' ? 'var(--success)' : (p.estado === 'preparacion' ? 'var(--gold-soft)' : 'var(--info)');
-                        const stBg = p.estado === 'completado' ? 'rgba(52,211,153,0.15)' : (p.estado === 'preparacion' ? 'var(--gold-dim)' : 'rgba(96,165,250,0.15)');
+                    let itemPills = '';
+                    dayEntries.forEach(entry => {
+                        const p = entry.order;
+                        const it = entry.item;
+                        const isDone = (it.estado_item === 'comprado');
+                        
+                        const stColor = isDone ? 'var(--success)' : (p.estado === 'preparacion' ? 'var(--gold-soft)' : 'var(--info)');
+                        const stBg = isDone ? 'rgba(52,211,153,0.15)' : (p.estado === 'preparacion' ? 'var(--gold-dim)' : 'rgba(96,165,250,0.15)');
                         
                         const folioStr = p.folio ? `#${p.folio}` : '';
-                        const author = p.autor || 'Personal';
-                        const count = p.total_lineas ?? (p.items || []).length;
+                        const name = it.nombre || (catMap[it.codigo] ? catMap[it.codigo].nombre : it.codigo);
+                        const qty = `${fmtNum(it.cantidad)} ${it.unidad || 'und'}`;
 
-                        orderPills += `
-                            <div onclick="event.stopPropagation();openDayDeliveriesModal('${dayIso}')" style="background:${stBg};border:1px solid ${stColor};color:${stColor};border-radius:6px;padding:4px 6px;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(author)} (${count} insumos)">
-                                🚚 ${folioStr} ${escapeHtml(author)} (${count})
+                        itemPills += `
+                            <div onclick="event.stopPropagation();openDayDeliveriesModal('${dayIso}')" style="background:${stBg};border:1px solid ${stColor};color:${stColor};border-radius:6px;padding:3px 6px;font-size:11px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${folioStr} ${escapeHtml(p.autor)}: ${escapeHtml(name)} (${qty})">
+                                🚚 ${folioStr} <b>${qty}</b> ${escapeHtml(name)}
                             </div>`;
                     });
 
@@ -2648,7 +2684,7 @@ $isAdmin = ($role === 'admin');
                                 <span style="font-size:13px;font-weight:800;color:${isToday ? 'var(--gold)' : 'var(--text)'};">${day}</span>
                                 ${isToday ? '<span style="font-size:9px;background:var(--gold);color:#100e0c;font-weight:800;padding:1px 5px;border-radius:4px;">HOY</span>' : ''}
                             </div>
-                            ${orderPills}
+                            ${itemPills}
                         </div>`;
                 }
 
@@ -2671,30 +2707,38 @@ $isAdmin = ($role === 'admin');
                 const sub = document.getElementById('dayDeliveriesSub');
                 const body = document.getElementById('dayDeliveriesBody');
 
-                const dayOrders = pedidos.filter(p => {
-                    const delivDate = p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
-                    return delivDate === dayIso;
+                const matchingEntries = [];
+                pedidos.forEach(p => {
+                    if (!p.items || p.estado === 'anulado') return;
+                    p.items.forEach(it => {
+                        const delivDate = it.fecha_entrega || p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
+                        if (delivDate === dayIso) {
+                            matchingEntries.push({ order: p, item: it });
+                        }
+                    });
                 });
 
-                title.textContent = `🚚 Entregas para el ${dayIso}`;
-                sub.textContent = dayOrders.length ? `${dayOrders.length} pedido(s) programados para esta fecha.` : 'No hay pedidos programados para entregar en esta fecha.';
+                title.textContent = `🚚 Insumos a Entregar el ${dayIso}`;
+                sub.textContent = matchingEntries.length ? `${matchingEntries.length} insumo(s) programados para llegar en esta fecha.` : 'No hay insumos programados para esta fecha.';
 
-                if (!dayOrders.length) {
-                    body.innerHTML = `<div class="empty"><p>No se registraron entregas para este día.</p></div>`;
+                if (!matchingEntries.length) {
+                    body.innerHTML = `<div class="empty"><p>No se registraron entregas de insumos para este día.</p></div>`;
                 } else {
-                    body.innerHTML = dayOrders.map(p => {
-                        const itemsList = (p.items || []).map(it => `• <b>${fmtNum(it.cantidad)} ${escapeHtml(it.unidad || 'und')}</b> - ${escapeHtml(it.nombre || it.codigo)} (${escapeHtml(it.proveedor || 'Otro')})`).join('<br>');
+                    body.innerHTML = matchingEntries.map(e => {
+                        const p = e.order;
+                        const it = e.item;
+                        const isDone = (it.estado_item === 'comprado');
+                        const prod = catMap[it.codigo];
+                        const name = it.nombre || (prod ? prod.nombre : it.codigo);
+
                         return `
-                            <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                                    <div>
-                                        <strong style="font-size:14px;color:var(--gold-soft);">${p.folio ? 'Folio #' + p.folio + ' · ' : ''}${escapeHtml(p.autor || 'Personal')}</strong>
-                                        <div style="font-size:11px;color:var(--muted);">${fmtDate(p.creado_en)}</div>
-                                    </div>
-                                    <span class="estado ${p.estado}">${ESTADO_LABEL[p.estado] || p.estado}</span>
+                            <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                                <div>
+                                    <strong style="font-size:13.5px;color:var(--text);">${escapeHtml(name)}</strong>
+                                    <div style="font-size:11.5px;color:var(--gold-soft);font-weight:700;">${fmtNum(it.cantidad)} ${escapeHtml(it.unidad || 'und')} · ${escapeHtml(it.proveedor || 'Otro')}</div>
+                                    <div style="font-size:10.5px;color:var(--muted);">${p.folio ? 'Folio #' + p.folio + ' · ' : ''}Pedid@ por: ${escapeHtml(p.autor || 'Personal')}</div>
                                 </div>
-                                <div style="font-size:12.5px;color:var(--text);line-height:1.5;margin-bottom:6px;">${itemsList}</div>
-                                ${p.nota ? `<div style="font-size:11.5px;color:var(--muted);font-style:italic;">💬 "${escapeHtml(p.nota)}"</div>` : ''}
+                                <span class="estado ${isDone ? 'completado' : p.estado}">${isDone ? 'COMPRADO' : (ESTADO_LABEL[p.estado] || p.estado)}</span>
                             </div>`;
                     }).join('');
                 }

@@ -205,12 +205,14 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $unidad   = trim(strip_tags($item['unidad'] ?? 'und'));
         $cantidad = filter_var($item['cantidad'] ?? 0, FILTER_VALIDATE_FLOAT);
         if (!empty($codigo) && preg_match('/^[A-Z0-9\-]+$/i', $codigo) && $cantidad !== false && $cantidad > 0) {
-            $items[] = [
-                'codigo'   => $codigo,
-                'nombre'   => $nombre,
-                'unidad'   => $unidad,
-                'cantidad' => round($cantidad, 2)
-            ];
+                $fechaItem = !empty($item['fecha_entrega']) ? trim(strip_tags($item['fecha_entrega'])) : $fechaEntrega;
+                $items[] = [
+                    'codigo'        => $codigo,
+                    'nombre'        => $nombre,
+                    'unidad'        => $unidad,
+                    'cantidad'      => round($cantidad, 2),
+                    'fecha_entrega' => $fechaItem
+                ];
         }
     }
 
@@ -384,20 +386,23 @@ if (($action === 'editar_pedido' || $action === 'guardar_precios') && $_SERVER['
                 $proveedor = trim(strip_tags($it['proveedor'] ?? 'Otro'));
                 $estadoItem = in_array($it['estado_item'] ?? 'pendiente', ['pendiente', 'comprado', 'anulado'], true) ? $it['estado_item'] : 'pendiente';
 
+                $fechaItem = !empty($it['fecha_entrega']) ? trim(strip_tags($it['fecha_entrega'])) : ($p['fecha_entrega'] ?? date('Y-m-d'));
+
                 if (!empty($codigo) && !empty($nombre) && $cant > 0) {
                     $subtotal = round($cant * $precio, 2);
                     $totalMonto += $subtotal;
                     $totalUnidades += $cant;
 
                     $updatedItems[] = [
-                        'codigo'      => $codigo,
-                        'nombre'      => $nombre,
-                        'unidad'      => $unidad,
-                        'cantidad'    => $cant,
-                        'precio'      => $precio,
-                        'proveedor'   => $proveedor,
-                        'subtotal'    => $subtotal,
-                        'estado_item' => $estadoItem
+                        'codigo'        => $codigo,
+                        'nombre'        => $nombre,
+                        'unidad'        => $unidad,
+                        'cantidad'      => $cant,
+                        'precio'        => $precio,
+                        'proveedor'     => $proveedor,
+                        'subtotal'      => $subtotal,
+                        'estado_item'   => $estadoItem,
+                        'fecha_entrega' => $fechaItem
                     ];
 
                     if ($precio > 0) {
