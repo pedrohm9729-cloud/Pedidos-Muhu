@@ -735,13 +735,21 @@ $isAdmin = ($role === 'admin');
                     <button class="btn-toggle-view active" id="btnModePedidos">📋 Vista por Pedidos</button>
                     <button class="btn-toggle-view" id="btnModeProveedores">🛒 Hoja de Compras por Proveedor</button>
                 </div>
-                <div class="chips" id="estadoChips">
-                    <div class="chip active" data-estado="curso">En curso</div>
-                    <div class="chip" data-estado="todos">Todos</div>
-                    <div class="chip" data-estado="enviado">Nuevos</div>
-                    <div class="chip" data-estado="preparacion">En preparación</div>
-                    <div class="chip" data-estado="completado">Completados</div>
-                    <div class="chip" data-estado="anulado">Anulados</div>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div class="chips" id="estadoChips">
+                        <div class="chip active" data-estado="curso">En curso</div>
+                        <div class="chip" data-estado="todos">Todos</div>
+                        <div class="chip" data-estado="enviado">Nuevos</div>
+                        <div class="chip" data-estado="preparacion">En preparación</div>
+                        <div class="chip" data-estado="completado">Completados</div>
+                        <div class="chip" data-estado="anulado">Anulados</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:4px 10px;border-radius:10px;">
+                        <span style="font-size:12.5px;color:var(--gold-soft);font-weight:600;">👤 Solicitante:</span>
+                        <select id="solicitanteFilter" style="background:transparent;color:var(--text);border:none;outline:none;font-size:12.5px;font-weight:600;cursor:pointer;">
+                            <option value="todos" style="background:var(--bg-card);color:var(--text);">Todos los solicitantes</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -1369,8 +1377,31 @@ $isAdmin = ($role === 'admin');
 
             let pedidos = [];
             let filtro = 'curso';
+            let solicitanteFiltro = 'todos';
             let mode = 'pedidos'; // 'pedidos' o 'proveedores'
             let expandedOrders = {}; // request_id -> bool
+
+            const solicitanteSelect = document.getElementById('solicitanteFilter');
+            if (solicitanteSelect) {
+                solicitanteSelect.addEventListener('change', () => {
+                    solicitanteFiltro = solicitanteSelect.value;
+                    renderMain();
+                });
+            }
+
+            function updateSolicitantesDropdown() {
+                if (!solicitanteSelect) return;
+                const currentVal = solicitanteSelect.value || 'todos';
+                const autores = Array.from(new Set(pedidos.map(p => p.autor).filter(Boolean))).sort();
+
+                let options = `<option value="todos" style="background:var(--bg-card);color:var(--text);">Todos los solicitantes</option>`;
+                autores.forEach(a => {
+                    options += `<option value="${escapeHtml(a)}" style="background:var(--bg-card);color:var(--text);">👤 ${escapeHtml(a)}</option>`;
+                });
+                solicitanteSelect.innerHTML = options;
+                solicitanteSelect.value = autores.includes(currentVal) ? currentVal : 'todos';
+                solicitanteFiltro = solicitanteSelect.value;
+            }
 
             const ESTADO_LABEL = { enviado: 'Nuevo', preparacion: 'En preparación', completado: 'Completado', anulado: 'Anulado', error: 'Error de envío' };
             const isToday = iso => { const d = new Date(iso); const n = new Date(); return d.toDateString() === n.toDateString(); };
@@ -1425,6 +1456,7 @@ $isAdmin = ($role === 'admin');
                 if (!r.ok) throw new Error('No se pudieron cargar los pedidos.');
                 const data = await r.json();
                 pedidos = data.pedidos || [];
+                updateSolicitantesDropdown();
                 renderStats();
                 renderMain();
             }
@@ -1450,6 +1482,9 @@ $isAdmin = ($role === 'admin');
             }
 
             function matchFilter(p) {
+                if (solicitanteFiltro !== 'todos' && p.autor !== solicitanteFiltro && p.usuario !== solicitanteFiltro) {
+                    return false;
+                }
                 if (filtro === 'todos') return true;
                 if (filtro === 'curso') return p.estado === 'enviado' || p.estado === 'preparacion' || p.estado === 'error';
                 if (filtro === 'anulado') return p.estado === 'anulado' || p.estado === 'error';
