@@ -750,6 +750,18 @@ $isAdmin = ($role === 'admin');
                             <option value="todos" style="background:var(--bg-card);color:var(--text);">Todos los solicitantes</option>
                         </select>
                     </div>
+                    <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:4px 10px;border-radius:10px;">
+                        <span style="font-size:12.5px;color:var(--gold-soft);font-weight:600;">📅 Fecha:</span>
+                        <select id="fechaFilter" style="background:transparent;color:var(--text);border:none;outline:none;font-size:12.5px;font-weight:600;cursor:pointer;">
+                            <option value="todas" style="background:var(--bg-card);color:var(--text);">Todas las fechas</option>
+                            <option value="hoy" style="background:var(--bg-card);color:var(--text);">Hoy</option>
+                            <option value="ayer" style="background:var(--bg-card);color:var(--text);">Ayer</option>
+                            <option value="7dias" style="background:var(--bg-card);color:var(--text);">Últimos 7 días</option>
+                            <option value="mes" style="background:var(--bg-card);color:var(--text);">Este mes</option>
+                            <option value="custom" style="background:var(--bg-card);color:var(--text);">Elegir fecha...</option>
+                        </select>
+                        <input type="date" id="fechaCustomInput" style="display:none;background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);padding:2px 6px;border-radius:6px;font-size:12px;">
+                    </div>
                 </div>
             </div>
 
@@ -1481,8 +1493,67 @@ $isAdmin = ($role === 'admin');
                     card('📦', 'warn', fmtNum(unidadesHoy), 'Unidades pedidas hoy');
             }
 
+            let fechaFiltro = 'todas';
+            let fechaCustom = '';
+
+            const fechaSelect = document.getElementById('fechaFilter');
+            const fechaCustomInput = document.getElementById('fechaCustomInput');
+
+            if (fechaSelect) {
+                fechaSelect.addEventListener('change', () => {
+                    fechaFiltro = fechaSelect.value;
+                    if (fechaFiltro === 'custom') {
+                        if (fechaCustomInput) fechaCustomInput.style.display = 'inline-block';
+                    } else {
+                        if (fechaCustomInput) fechaCustomInput.style.display = 'none';
+                        renderMain();
+                    }
+                });
+            }
+
+            if (fechaCustomInput) {
+                fechaCustomInput.addEventListener('change', () => {
+                    fechaCustom = fechaCustomInput.value;
+                    renderMain();
+                });
+            }
+
+            function matchDate(p) {
+                if (fechaFiltro === 'todas') return true;
+                const iso = p.creado_en || p.actualizado_en;
+                if (!iso) return true;
+                const d = new Date(iso);
+                const now = new Date();
+
+                if (fechaFiltro === 'hoy') {
+                    return d.toDateString() === now.toDateString();
+                }
+                if (fechaFiltro === 'ayer') {
+                    const y = new Date();
+                    y.setDate(y.getDate() - 1);
+                    return d.toDateString() === y.toDateString();
+                }
+                if (fechaFiltro === '7dias') {
+                    const limit = new Date();
+                    limit.setDate(limit.getDate() - 7);
+                    return d >= limit;
+                }
+                if (fechaFiltro === 'mes') {
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                }
+                if (fechaFiltro === 'custom') {
+                    if (!fechaCustom) return true;
+                    const pDateStr = d.toISOString().split('T')[0];
+                    return pDateStr === fechaCustom;
+                }
+                return true;
+            }
+
             function matchFilter(p) {
                 if (solicitanteFiltro !== 'todos' && p.autor !== solicitanteFiltro && p.usuario !== solicitanteFiltro) {
+                    return false;
+                }
+                if (!matchDate(p)) {
                     return false;
                 }
                 if (filtro === 'todos') return true;
