@@ -2568,6 +2568,140 @@ $isAdmin = ($role === 'admin');
                 }
             };
 
+            let calendarDate = new Date();
+
+            function renderCalendarView() {
+                const calendarEl = document.getElementById('calendarView');
+                if (!calendarEl) return;
+
+                const year = calendarDate.getFullYear();
+                const month = calendarDate.getMonth();
+                const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+                const firstDayIndex = (new Date(year, month, 1).getDay() + 6) % 7; // Lun=0
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const todayIso = (new Date()).toISOString().split('T')[0];
+
+                const ordersByDate = {};
+                pedidos.forEach(p => {
+                    const delivDate = p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
+                    if (delivDate) {
+                        if (!ordersByDate[delivDate]) ordersByDate[delivDate] = [];
+                        ordersByDate[delivDate].push(p);
+                    }
+                });
+
+                let html = `
+                    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-bottom:24px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <h3 style="font-size:1.25rem;font-weight:700;color:var(--text);">📅 Calendario de Entregas de Pedidos</h3>
+                                <span style="font-size:1.1rem;font-weight:700;color:var(--gold-soft);background:var(--gold-dim);padding:4px 12px;border-radius:20px;border:1px solid var(--gold-line);">${monthNames[month]} ${year}</span>
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-sm" onclick="navCalendar(-1)">◀ Mes Anterior</button>
+                                <button class="btn btn-sm" onclick="navCalendar(0)">Hoy</button>
+                                <button class="btn btn-sm" onclick="navCalendar(1)">Mes Siguiente ▶</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(7, 1fr);gap:8px;text-align:center;font-weight:700;font-size:12px;color:var(--gold-soft);margin-bottom:8px;">
+                            <div>LUNES</div><div>MARTES</div><div>MIÉRCOLES</div><div>JUEVES</div><div>VIERNES</div><div>SÁBADO</div><div>DOMINGO</div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(7, 1fr);gap:8px;">`;
+
+                for (let i = 0; i < firstDayIndex; i++) {
+                    html += `<div style="background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:12px;min-height:90px;opacity:0.25;"></div>`;
+                }
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dStr = String(day).padStart(2, '0');
+                    const mStr = String(month + 1).padStart(2, '0');
+                    const dayIso = `${year}-${mStr}-${dStr}`;
+                    const isToday = (dayIso === todayIso);
+                    const dayOrders = ordersByDate[dayIso] || [];
+
+                    let cellStyle = "background:var(--bg-card);border:1px solid var(--line);border-radius:12px;min-height:100px;padding:8px;display:flex;flex-direction:column;gap:4px;position:relative;cursor:pointer;";
+                    if (isToday) {
+                        cellStyle += "border:2px solid var(--gold);box-shadow:0 0 10px rgba(201,160,82,0.3);";
+                    }
+
+                    let orderPills = '';
+                    dayOrders.forEach(p => {
+                        const stColor = p.estado === 'completado' ? 'var(--success)' : (p.estado === 'preparacion' ? 'var(--gold-soft)' : 'var(--info)');
+                        const stBg = p.estado === 'completado' ? 'rgba(52,211,153,0.15)' : (p.estado === 'preparacion' ? 'var(--gold-dim)' : 'rgba(96,165,250,0.15)');
+                        
+                        const folioStr = p.folio ? `#${p.folio}` : '';
+                        const author = p.autor || 'Personal';
+                        const count = p.total_lineas ?? (p.items || []).length;
+
+                        orderPills += `
+                            <div onclick="event.stopPropagation();openDayDeliveriesModal('${dayIso}')" style="background:${stBg};border:1px solid ${stColor};color:${stColor};border-radius:6px;padding:4px 6px;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(author)} (${count} insumos)">
+                                🚚 ${folioStr} ${escapeHtml(author)} (${count})
+                            </div>`;
+                    });
+
+                    html += `
+                        <div style="${cellStyle}" onclick="openDayDeliveriesModal('${dayIso}')">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                <span style="font-size:13px;font-weight:800;color:${isToday ? 'var(--gold)' : 'var(--text)'};">${day}</span>
+                                ${isToday ? '<span style="font-size:9px;background:var(--gold);color:#100e0c;font-weight:800;padding:1px 5px;border-radius:4px;">HOY</span>' : ''}
+                            </div>
+                            ${orderPills}
+                        </div>`;
+                }
+
+                html += `</div></div>`;
+                calendarEl.innerHTML = html;
+            }
+
+            window.navCalendar = function(dir) {
+                if (dir === 0) {
+                    calendarDate = new Date();
+                } else {
+                    calendarDate.setMonth(calendarDate.getMonth() + dir);
+                }
+                renderCalendarView();
+            };
+
+            window.openDayDeliveriesModal = function(dayIso) {
+                const modal = document.getElementById('modalDayDeliveries');
+                const title = document.getElementById('dayDeliveriesTitle');
+                const sub = document.getElementById('dayDeliveriesSub');
+                const body = document.getElementById('dayDeliveriesBody');
+
+                const dayOrders = pedidos.filter(p => {
+                    const delivDate = p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '');
+                    return delivDate === dayIso;
+                });
+
+                title.textContent = `🚚 Entregas para el ${dayIso}`;
+                sub.textContent = dayOrders.length ? `${dayOrders.length} pedido(s) programados para esta fecha.` : 'No hay pedidos programados para entregar en esta fecha.';
+
+                if (!dayOrders.length) {
+                    body.innerHTML = `<div class="empty"><p>No se registraron entregas para este día.</p></div>`;
+                } else {
+                    body.innerHTML = dayOrders.map(p => {
+                        const itemsList = (p.items || []).map(it => `• <b>${fmtNum(it.cantidad)} ${escapeHtml(it.unidad || 'und')}</b> - ${escapeHtml(it.nombre || it.codigo)} (${escapeHtml(it.proveedor || 'Otro')})`).join('<br>');
+                        return `
+                            <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                    <div>
+                                        <strong style="font-size:14px;color:var(--gold-soft);">${p.folio ? 'Folio #' + p.folio + ' · ' : ''}${escapeHtml(p.autor || 'Personal')}</strong>
+                                        <div style="font-size:11px;color:var(--muted);">${fmtDate(p.creado_en)}</div>
+                                    </div>
+                                    <span class="estado ${p.estado}">${ESTADO_LABEL[p.estado] || p.estado}</span>
+                                </div>
+                                <div style="font-size:12.5px;color:var(--text);line-height:1.5;margin-bottom:6px;">${itemsList}</div>
+                                ${p.nota ? `<div style="font-size:11.5px;color:var(--muted);font-style:italic;">💬 "${escapeHtml(p.nota)}"</div>` : ''}
+                            </div>`;
+                    }).join('');
+                }
+
+                if (modal) modal.style.display = 'flex';
+            };
+
             async function refresh() {
                 try { await loadPedidos(); }
                 catch (err) { ordersEl.innerHTML = `<div class="empty" style="color:var(--danger)"><p>${escapeHtml(err.message)}</p></div>`; }

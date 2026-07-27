@@ -376,9 +376,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 /* Form card */
 .form-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-bottom:28px;}
 .form-card h3{font-size:.95rem;font-weight:600;color:var(--gold);margin-bottom:18px;}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px;}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px;align-items:end;}
+.field{display:flex;flex-direction:column;justify-content:flex-end;}
 .field label{font-size:.73rem;color:var(--muted);display:block;margin-bottom:5px;font-weight:600;
-    text-transform:uppercase;letter-spacing:.04em;}
+    text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:18px;line-height:18px;}
 input[type=text],input[type=text]:focus,select{width:100%;background:var(--surface-2);
     border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--font);
     font-size:.88rem;padding:10px 13px;outline:none;transition:border .2s;}
@@ -475,7 +476,7 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
             <input type="hidden" name="accion" value="<?= $editar ? 'editar' : 'agregar' ?>">
             <div class="form-grid">
                 <div class="field">
-                    <label>Código <span style="font-weight:400;color:var(--gold-soft);font-size:0.75rem;">(Opcional - automático)</span></label>
+                    <label>Código <span style="text-transform:none;font-weight:400;color:var(--gold-soft);font-size:0.7rem;">(Auto)</span></label>
                     <input type="text" name="codigo" id="codigoInput" value="<?= htmlspecialchars($editar['codigo'] ?? $old['codigo'] ?? '') ?>"
                         placeholder="ej. VE-007 (o dejar en blanco)" maxlength="20"
                         <?= $editar ? 'readonly style="opacity:.55;cursor:not-allowed"' : '' ?>>
