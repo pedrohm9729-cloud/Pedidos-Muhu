@@ -847,48 +847,6 @@ $isAdmin = ($role === 'admin');
                 </div>
             </div>
 
-            <!-- Modal agregar insumo a pedido existente (Admin) -->
-            <div class="modal" id="modalAddInsumoOrder">
-                <div class="modal-card" style="max-width:440px;">
-                    <div class="modal-ico" style="font-size:1.5rem;">➕</div>
-                    <h3 class="modal-title">Agregar insumo al pedido</h3>
-                    <p class="modal-desc" style="margin-bottom:14px;">Añade un insumo del catálogo o personalizado a este pedido.</p>
-                    
-                    <label style="font-size:12px;color:var(--gold-soft);font-weight:600;display:block;margin-bottom:4px;">Seleccionar del catálogo o escribir insumo:</label>
-                    <select id="addInsumoCatalogSelect" class="search-input" style="margin-bottom:10px;width:100%;background:var(--bg-card);color:var(--text);" onchange="onSelectCatalogItemForAdd(this)">
-                    </select>
-                    
-                    <input id="addInsumoNombre" type="text" class="search-input" placeholder="Nombre del insumo / descripción" style="margin-bottom:10px;width:100%;" maxlength="100">
-                    
-                    <div style="display:flex;gap:10px;margin-bottom:10px;">
-                        <div style="flex:1;">
-                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Cantidad:</label>
-                            <input id="addInsumoCantidad" type="number" class="search-input" placeholder="Cantidad" min="0.01" step="0.01" value="1" style="width:100%;">
-                        </div>
-                        <div style="flex:1;">
-                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Unidad:</label>
-                            <input id="addInsumoUnidad" type="text" class="search-input" placeholder="Ej. kg, und" style="width:100%;" maxlength="20">
-                        </div>
-                    </div>
-                    
-                    <div style="display:flex;gap:10px;margin-bottom:18px;">
-                        <div style="flex:1;">
-                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Proveedor:</label>
-                            <input id="addInsumoProveedor" type="text" class="search-input" placeholder="Ej. Biopacking" style="width:100%;">
-                        </div>
-                        <div style="flex:1;">
-                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Precio Unit. (S/):</label>
-                            <input id="addInsumoPrecio" type="number" class="search-input" placeholder="0.00" min="0" step="0.1" style="width:100%;">
-                        </div>
-                    </div>
-                    
-                    <div style="display:flex;gap:10px;">
-                        <button class="btn" id="btnAddInsumoCancel" onclick="closeAddItemModal()" style="flex:1;">Cancelar</button>
-                        <button class="btn btn-gold" id="btnAddInsumoOk" onclick="confirmAddItemToOrder()" style="flex:1;">➕ Agregar al pedido</button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Barra flotante (móvil) -->
             <div class="cart-bar" id="cartBar">
                 <div class="cb-left">
@@ -903,6 +861,48 @@ $isAdmin = ($role === 'admin');
             <div class="sheet-overlay" id="sheetOverlay"></div>
 <?php endif; ?>
         </main>
+    </div>
+
+    <!-- Modal agregar insumo a pedido existente -->
+    <div class="modal" id="modalAddInsumoOrder">
+        <div class="modal-card" style="max-width:440px;">
+            <div class="modal-ico" style="font-size:1.5rem;">➕</div>
+            <h3 class="modal-title">Agregar insumo al pedido</h3>
+            <p class="modal-desc" style="margin-bottom:14px;">Añade un insumo del catálogo o personalizado a este pedido.</p>
+            
+            <label style="font-size:12px;color:var(--gold-soft);font-weight:600;display:block;margin-bottom:4px;">Seleccionar del catálogo o escribir insumo:</label>
+            <select id="addInsumoCatalogSelect" class="search-input" style="margin-bottom:10px;width:100%;background:var(--bg-card);color:var(--text);" onchange="onSelectCatalogItemForAdd(this)">
+            </select>
+            
+            <input id="addInsumoNombre" type="text" class="search-input" placeholder="Nombre del insumo / descripción" style="margin-bottom:10px;width:100%;" maxlength="100">
+            
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+                <div style="flex:1;">
+                    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Cantidad:</label>
+                    <input id="addInsumoCantidad" type="number" class="search-input" placeholder="Cantidad" min="0.01" step="0.01" value="1" style="width:100%;">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Unidad:</label>
+                    <input id="addInsumoUnidad" type="text" class="search-input" placeholder="Ej. kg, und" style="width:100%;" maxlength="20">
+                </div>
+            </div>
+            
+            <div style="display:flex;gap:10px;margin-bottom:18px;">
+                <div style="flex:1;">
+                    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Proveedor:</label>
+                    <input id="addInsumoProveedor" type="text" class="search-input" placeholder="Ej. Biopacking" style="width:100%;">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Precio Unit. (S/):</label>
+                    <input id="addInsumoPrecio" type="number" class="search-input" placeholder="0.00" min="0" step="0.1" style="width:100%;">
+                </div>
+            </div>
+            
+            <div style="display:flex;gap:10px;">
+                <button class="btn" id="btnAddInsumoCancel" onclick="closeAddItemModal()" style="flex:1;">Cancelar</button>
+                <button class="btn btn-gold" id="btnAddInsumoOk" onclick="confirmAddItemToOrder()" style="flex:1;">➕ Agregar al pedido</button>
+            </div>
+        </div>
     </div>
 
     <!-- Modal -->
