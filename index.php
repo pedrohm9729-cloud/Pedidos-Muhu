@@ -870,7 +870,8 @@ $isAdmin = ($role === 'admin');
             <h3 class="modal-title">Agregar insumo al pedido</h3>
             <p class="modal-desc" style="margin-bottom:14px;">Añade un insumo del catálogo o personalizado a este pedido.</p>
             
-            <label style="font-size:12px;color:var(--gold-soft);font-weight:600;display:block;margin-bottom:4px;">Seleccionar del catálogo o escribir insumo:</label>
+            <label style="font-size:12px;color:var(--gold-soft);font-weight:600;display:block;margin-bottom:4px;">Buscar insumo en el catálogo o escribir libre:</label>
+            <input id="addInsumoSearch" type="text" class="search-input" placeholder="🔍 Escribe para buscar (ej. Pollo, Aceite, Vasos)..." style="margin-bottom:6px;width:100%;" oninput="filterAddInsumoDropdown(this.value)">
             <select id="addInsumoCatalogSelect" class="search-input" style="margin-bottom:10px;width:100%;background:var(--bg-card);color:var(--text);" onchange="onSelectCatalogItemForAdd(this)">
             </select>
             
@@ -2108,25 +2109,45 @@ $isAdmin = ($role === 'admin');
                 }
             };
 
-            window.openAddItemModal = function(request_id) {
+            window.filterAddInsumoDropdown = function(query) {
+                const selectEl = document.getElementById('addInsumoCatalogSelect');
+                if (!selectEl) return;
+
+                const q = (query || '').toLowerCase().trim();
+                let options = `<option value="">-- Escribir insumo libre o elegir del catálogo --</option>`;
+                
+                const list = (catalog || []).slice().sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+                list.forEach(p => {
+                    const name = p.nombre || '';
+                    const prov = p.proveedor || 'Otro';
+                    const code = p.codigo || '';
+                    
+                    if (!q || name.toLowerCase().includes(q) || prov.toLowerCase().includes(q) || code.toLowerCase().includes(q)) {
+                        const hist = priceHistMap[p.codigo];
+                        const priceStr = hist ? ` (Ref: S/ ${fmtNum(hist.precio)})` : '';
+                        options += `<option value="${escapeHtml(code)}">${escapeHtml(name)}${priceStr} - ${escapeHtml(prov)}</option>`;
+                    }
+                });
+
+                selectEl.innerHTML = options;
+            };
+
+            window.openAddItemModal = async function(request_id) {
                 currentRequestIdForAdd = request_id;
                 const modal = document.getElementById('modalAddInsumoOrder');
-                const selectEl = document.getElementById('addInsumoCatalogSelect');
+                const searchInp = document.getElementById('addInsumoSearch');
                 const nameInp = document.getElementById('addInsumoNombre');
                 const cantInp = document.getElementById('addInsumoCantidad');
                 const unitInp = document.getElementById('addInsumoUnidad');
                 const provInp = document.getElementById('addInsumoProveedor');
                 const priceInp = document.getElementById('addInsumoPrecio');
 
-                let options = `<option value="">-- Escribir insumo libre o elegir del catálogo --</option>`;
-                const sortedProds = (catalogo || []).slice().sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
-                sortedProds.forEach(p => {
-                    const hist = priceHistMap[p.codigo];
-                    const priceStr = hist ? ` (Ref: S/ ${fmtNum(hist.precio)})` : '';
-                    options += `<option value="${escapeHtml(p.codigo)}">${escapeHtml(p.nombre)}${priceStr} - ${escapeHtml(p.proveedor || 'Otro')}</option>`;
-                });
-                selectEl.innerHTML = options;
-                selectEl.value = '';
+                if (!catalog || catalog.length === 0) {
+                    try { await loadCatalog(); } catch (e) {}
+                }
+
+                if (searchInp) searchInp.value = '';
+                filterAddInsumoDropdown('');
 
                 nameInp.value = '';
                 cantInp.value = '1';
