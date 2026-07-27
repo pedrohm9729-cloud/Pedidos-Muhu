@@ -39,6 +39,7 @@ try {
     die('<p style="color:red;font-family:sans-serif;padding:40px">No se pudo conectar a la base de datos de catálogo: ' . htmlspecialchars($e->getMessage()) . '</p>');
 }
 
+$old = [];
 // ── POST ────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion = $_POST['accion'] ?? '';
@@ -49,6 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $unidad    = trim($_POST['unidad']    ?? '');
         $categoria = trim($_POST['categoria'] ?? '');
         $proveedor = trim($_POST['proveedor'] ?? '') ?: 'Otro';
+        
+        $old = [
+            'codigo'    => $codigo,
+            'nombre'    => $nombre,
+            'unidad'    => $unidad,
+            'categoria' => $categoria,
+            'proveedor' => $_POST['proveedor'] ?? '',
+        ];
+
         if (!$codigo || !$nombre || !$unidad || !$categoria) {
             $err = 'Código, nombre, unidad y categoría son obligatorios.';
         } elseif (!preg_match('/^[A-Z0-9\-]+$/', $codigo)) {
@@ -58,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->prepare('INSERT INTO catalogo (codigo,nombre,unidad,categoria,proveedor,activo) VALUES (?,?,?,?,?,1)')
                    ->execute([$codigo, $nombre, $unidad, $categoria, $proveedor]);
                 $msg = "Ítem «{$nombre}» agregado.";
+                $old = []; // Limpiar formulario al agregar exitosamente
             } catch (\Exception $e) {
                 $err = "El código «{$codigo}» ya existe. Usa uno diferente.";
             }
@@ -399,24 +410,24 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
             <div class="form-grid">
                 <div class="field">
                     <label>Código *</label>
-                    <input type="text" name="codigo" value="<?= htmlspecialchars($editar['codigo'] ?? '') ?>"
+                    <input type="text" name="codigo" value="<?= htmlspecialchars($editar['codigo'] ?? $old['codigo'] ?? '') ?>"
                         placeholder="ej. VE-007" maxlength="20"
                         <?= $editar ? 'readonly style="opacity:.55;cursor:not-allowed"' : '' ?> required>
                 </div>
                 <div class="field">
                     <label>Nombre *</label>
-                    <input type="text" name="nombre" value="<?= htmlspecialchars($editar['nombre'] ?? '') ?>"
+                    <input type="text" name="nombre" value="<?= htmlspecialchars($editar['nombre'] ?? $old['nombre'] ?? '') ?>"
                         placeholder="ej. Zapallo macre" maxlength="80" required>
                 </div>
                 <div class="field">
                     <label>Unidad *</label>
-                    <input type="text" name="unidad" value="<?= htmlspecialchars($editar['unidad'] ?? '') ?>"
+                    <input type="text" name="unidad" value="<?= htmlspecialchars($editar['unidad'] ?? $old['unidad'] ?? '') ?>"
                         placeholder="ej. kg, und, caja x12" maxlength="30" required>
                 </div>
                 <div class="field">
                     <label>Categoría *</label>
                     <input type="text" name="categoria" list="cat-list"
-                        value="<?= htmlspecialchars($editar['categoria'] ?? '') ?>"
+                        value="<?= htmlspecialchars($editar['categoria'] ?? $old['categoria'] ?? '') ?>"
                         placeholder="ej. Verduras" maxlength="40" required>
                     <datalist id="cat-list">
                         <?php foreach ($cats as $c): ?>
@@ -426,7 +437,7 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
                 </div>
                 <div class="field">
                     <label>Proveedor</label>
-                    <input type="text" name="proveedor" value="<?= htmlspecialchars($editar['proveedor'] ?? '') ?>"
+                    <input type="text" name="proveedor" value="<?= htmlspecialchars($editar['proveedor'] ?? $old['proveedor'] ?? '') ?>"
                         placeholder="ej. Mercado mayorista" maxlength="60">
                 </div>
             </div>
