@@ -39,10 +39,59 @@ try {
     die('<p style="color:red;font-family:sans-serif;padding:40px">No se pudo conectar a la base de datos de catálogo: ' . htmlspecialchars($e->getMessage()) . '</p>');
 }
 
+function obtenerPrefijoCategoria(PDO $db, string $categoria): string {
+    $st = $db->prepare('SELECT codigo FROM catalogo WHERE LOWER(categoria) = LOWER(?) AND codigo LIKE "%-%" LIMIT 50');
+    $st->execute([$categoria]);
+    $codigos = $st->fetchAll(PDO::FETCH_COLUMN);
+
+    foreach ($codigos as $c) {
+        if (preg_match('/^([A-Z0-9]+)\-/i', $c, $m)) {
+            return strtoupper($m[1]);
+        }
+    }
+
+    $cleanCat = preg_replace('/[^A-Za-z0-9]/', '', mb_strtoupper($categoria));
+    $prefix = mb_substr($cleanCat, 0, 2);
+    if (strlen($prefix) < 2) {
+        $prefix = str_pad($prefix, 2, 'X');
+    }
+
+    return $prefix;
+}
+
+function generarCorrelativo(PDO $db, string $categoria): string {
+    $prefix = obtenerPrefijoCategoria($db, $categoria);
+    
+    $st = $db->prepare('SELECT codigo FROM catalogo WHERE codigo LIKE ?');
+    $st->execute([$prefix . '-%']);
+    $rows = $st->fetchAll(PDO::FETCH_COLUMN);
+
+    $maxNum = 0;
+    foreach ($rows as $c) {
+        if (preg_match('/^' . preg_quote($prefix, '/') . '\-(\d+)$/i', $c, $m)) {
+            $num = (int)$m[1];
+            if ($num > $maxNum) {
+                $maxNum = $num;
+            }
+        }
+    }
+
+    $nextNum = $maxNum + 1;
+    return sprintf('%s-%03d', $prefix, $nextNum);
+}
+
 $old = [];
 // ── POST ────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion = $_POST['accion'] ?? '';
+
+    if ($accion === 'generar_codigo') {
+        header('Content-Type: application/json; charset=UTF-8');
+        $cat = trim($_POST['categoria'] ?? '');
+        $code = $cat ? generarCorrelativo($db, $cat) : '';
+        echo json_encode(['codigo' => $code]);
+        exit;
+    }
 
     if ($accion === 'agregar') {
         $codigo    = strtoupper(trim($_POST['codigo']    ?? ''));
@@ -50,24 +99,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $unidad    = trim($_POST['unidad']    ?? '');
         $categoria = trim($_POST['categoria'] ?? '');
         $proveedor = trim($_POST['proveedor'] ?? '') ?: 'Otro';
+
+        // Si el código está vacío, generar correlativo automático por categoría
+        if (!$codigo && $categoria) {
+            $codigo = generarCorrelativo($db, $categoria);
+        }
         
         $old = [
-            'codigo'    => $codigo,
+            'codigo'    => $_POST['codigo'] ?? '',
             'nombre'    => $nombre,
             'unidad'    => $unidad,
             'categoria' => $categoria,
             'proveedor' => $_POST['proveedor'] ?? '',
         ];
 
-        if (!$codigo || !$nombre || !$unidad || !$categoria) {
-            $err = 'Código, nombre, unidad y categoría son obligatorios.';
+        if (!$nombre || !$unidad || !$categoria) {
+            $err = 'Nombre, unidad y categoría son obligatorios.';
+        } elseif (!$codigo) {
+            $err = 'No se pudo generar un código correlativo. Especifica uno manualmente.';
         } elseif (!preg_match('/^[A-Z0-9\-]+$/', $codigo)) {
             $err = 'El código solo puede tener letras, números y guiones (ej. VE-007).';
         } else {
             try {
                 $db->prepare('INSERT INTO catalogo (codigo,nombre,unidad,categoria,proveedor,activo) VALUES (?,?,?,?,?,1)')
                    ->execute([$codigo, $nombre, $unidad, $categoria, $proveedor]);
-                $msg = "Ítem «{$nombre}» agregado.";
+                $msg = "Ítem «{$nombre}» agregado con éxito con el código «{$codigo}».";
                 $old = []; // Limpiar formulario al agregar exitosamente
             } catch (\Exception $e) {
                 $err = "El código «{$codigo}» ya existe. Usa uno diferente.";
@@ -409,10 +465,10 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
             <input type="hidden" name="accion" value="<?= $editar ? 'editar' : 'agregar' ?>">
             <div class="form-grid">
                 <div class="field">
-                    <label>Código *</label>
-                    <input type="text" name="codigo" value="<?= htmlspecialchars($editar['codigo'] ?? $old['codigo'] ?? '') ?>"
-                        placeholder="ej. VE-007" maxlength="20"
-                        <?= $editar ? 'readonly style="opacity:.55;cursor:not-allowed"' : '' ?> required>
+                    <label>Código <span style="font-weight:400;color:var(--gold-soft);font-size:0.75rem;">(Opcional - automático)</span></label>
+                    <input type="text" name="codigo" id="codigoInput" value="<?= htmlspecialchars($editar['codigo'] ?? $old['codigo'] ?? '') ?>"
+                        placeholder="ej. VE-007 (o dejar en blanco)" maxlength="20"
+                        <?= $editar ? 'readonly style="opacity:.55;cursor:not-allowed"' : '' ?>>
                 </div>
                 <div class="field">
                     <label>Nombre *</label>
@@ -569,6 +625,46 @@ function filtrar(q) {
         tr.style.display = tr.dataset.q.includes(q) ? '' : 'none';
     });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const catInput = document.querySelector('input[name="categoria"]');
+    const codeInput = document.getElementById('codigoInput');
+
+    if (catInput && codeInput) {
+        let timeout;
+        const updateAutoCode = async () => {
+            const catVal = catInput.value.trim();
+            if (!catVal) return;
+            if (codeInput.readOnly || (codeInput.dataset.auto === 'true' || !codeInput.value)) {
+                try {
+                    const fd = new FormData();
+                    fd.append('accion', 'generar_codigo');
+                    fd.append('categoria', catVal);
+                    const r = await fetch('catalogo-admin.php', { method: 'POST', body: fd });
+                    if (r.ok) {
+                        const data = await r.json();
+                        if (data.codigo && (!codeInput.value || codeInput.dataset.auto === 'true')) {
+                            codeInput.value = data.codigo;
+                            codeInput.dataset.auto = 'true';
+                        }
+                    }
+                } catch (e) {}
+            }
+        };
+
+        catInput.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(updateAutoCode, 300);
+        });
+        catInput.addEventListener('change', updateAutoCode);
+
+        codeInput.addEventListener('input', () => {
+            if (codeInput.value) {
+                delete codeInput.dataset.auto;
+            }
+        });
+    }
+});
 </script>
 </body>
 </html>
