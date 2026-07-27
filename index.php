@@ -1474,7 +1474,12 @@ $isAdmin = ($role === 'admin');
                     } else {
                         const rows = (p.items || []).map((it, idx) => {
                             const prod = catMap[it.codigo];
-                            let name = it.nombre || (prod ? prod.nombre : (it.codigo.startsWith('LIBRE-') ? `Ítem Libre` : it.codigo));
+                            let name = it.nombre || (prod ? prod.nombre : '');
+                            let displayVal = name;
+                            if (displayVal.startsWith('Ítem Libre') || displayVal === '') {
+                                displayVal = (prod ? prod.nombre : '');
+                            }
+                            const placeHolderText = prod ? prod.nombre : `Ítem Libre (${it.codigo}) - Escribe el nombre aquí`;
                             const unit = it.unidad || (prod ? prod.unidad : 'und');
                             const defaultProv = prod ? (prod.proveedor || 'Otro') : (it.proveedor || 'Otro');
                             const prov = it.proveedor || defaultProv;
@@ -1492,7 +1497,7 @@ $isAdmin = ($role === 'admin');
                                     <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${p.request_id}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
                                 </td>
                                 <td>
-                                    <input type="text" class="name-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(name)}" style="width:100%;min-width:140px;background:rgba(255,255,255,0.05);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;" title="Editar descripción de insumo">
+                                    <input type="text" class="name-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(displayVal)}" placeholder="${escapeHtml(placeHolderText)}" style="width:100%;min-width:240px;background:rgba(255,255,255,0.05);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 9px;font-size:13px;" title="Haz clic para escribir o modificar el nombre del insumo">
                                 </td>
                                 <td>
                                     <div style="display:flex;align-items:center;gap:4px;">
@@ -1516,7 +1521,7 @@ $isAdmin = ($role === 'admin');
                                 <thead>
                                     <tr>
                                         <th style="width:36px;text-align:center">✓</th>
-                                        <th style="min-width:160px;">Insumo / Descripción</th>
+                                        <th style="min-width:240px;">Insumo / Descripción</th>
                                         <th style="min-width:130px;">Cantidad</th>
                                         <th style="min-width:120px;">Proveedor</th>
                                         <th>Último Precio</th>
@@ -1870,13 +1875,17 @@ $isAdmin = ($role === 'admin');
                     const prInp = document.querySelector(`.prov-inp[data-req="${request_id}"][data-idx="${idx}"]`);
                     const priceInp = document.querySelector(`.price-inp[data-req="${request_id}"][data-idx="${idx}"]`);
 
-                    const nombre = nameInp ? nameInp.value.trim() : (it.nombre || '');
+                    let nombre = nameInp ? nameInp.value.trim() : (it.nombre || '');
+                    if (!nombre) {
+                        const prod = catMap[it.codigo];
+                        nombre = prod ? prod.nombre : (it.nombre && !it.nombre.startsWith('Ítem Libre') ? it.nombre : `Ítem Libre (${it.codigo})`);
+                    }
                     const cantidad = cantInp ? (parseFloat(cantInp.value) || 0) : (it.cantidad || 0);
                     const unidad = unitInp ? unitInp.value.trim() : (it.unidad || 'und');
                     const proveedor = prInp ? prInp.value.trim() : (it.proveedor || 'Otro');
                     const precio = priceInp ? (parseFloat(priceInp.value) || 0) : (it.precio || 0);
 
-                    if (cantidad > 0 && nombre !== '') {
+                    if (cantidad > 0) {
                         itemsUpdate.push({
                             codigo: it.codigo,
                             nombre: nombre,
