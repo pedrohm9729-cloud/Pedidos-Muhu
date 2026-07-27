@@ -1623,7 +1623,6 @@ $isAdmin = ($role === 'admin');
                         if (!provGroups[prov][it.codigo]) {
                             provGroups[prov][it.codigo] = {
                                 codigo: it.codigo,
-                                requestId: p.request_id,
                                 nombre: name,
                                 unidad: unit,
                                 cantidadTotal: 0,
@@ -1632,10 +1631,16 @@ $isAdmin = ($role === 'admin');
                                 notas: new Set(),
                                 isUrgent: false,
                                 precio: it.precio || 0,
-                                isDone: (it.estado_item === 'comprado')
+                                isDone: (it.estado_item === 'comprado'),
+                                requestIds: new Set()
                             };
                         }
                         provGroups[prov][it.codigo].cantidadTotal += cant;
+                        if (it.precio && it.precio > 0) {
+                            provGroups[prov][it.codigo].precio = it.precio;
+                        }
+                        provGroups[prov][it.codigo].requestIds.add(p.request_id);
+
                         if (p.autor) provGroups[prov][it.codigo].autores.add(p.autor);
                         if (p.creado_en) provGroups[prov][it.codigo].fechas.add(fmtDate(p.creado_en));
                         const cleanNota = (p.nota || '').replace('[🚨 URGENTE] ', '').replace('[URGENTE] ', '').trim();
@@ -1654,6 +1659,7 @@ $isAdmin = ($role === 'admin');
 
                 purchasingEl.innerHTML = provKeys.map(provName => {
                     const items = Object.values(provGroups[provName]);
+                    let suppTotalMonto = 0.0;
 
                     const tableRows = items.map(it => {
                         const hist = priceHistMap[it.codigo];
@@ -1661,25 +1667,37 @@ $isAdmin = ($role === 'admin');
                         const fchs = Array.from(it.fechas).map(f => escapeHtml(f)).join('<br>');
                         const nts = Array.from(it.notas).map(n => escapeHtml(n)).join(' · ');
                         const notaHtml = nts ? `<div style="font-size:11.5px;color:var(--gold-soft);font-style:italic;margin-top:3px;display:flex;align-items:center;gap:4px;">💬 <span>"${nts}"</span></div>` : '';
-                        const histTag = hist ? `S/ ${fmtNum(hist.precio)}` : '—';
+                        const histTag = hist ? `<span class="hist-ref" title="Última compra ${fmtDate(hist.fecha)}">Ref: S/ ${fmtNum(hist.precio)}</span>` : '<span class="hist-ref">—</span>';
                         const isDone = it.isDone;
+                        const priceVal = (it.precio !== undefined && it.precio > 0) ? it.precio : '';
+                        const cantTot = Number(it.cantidadTotal) || 0;
+                        const subtotal = (Number(priceVal) || 0) * cantTot;
+                        if (subtotal > 0) suppTotalMonto += subtotal;
+                        const reqIdArray = Array.from(it.requestIds);
+                        const firstReqId = reqIdArray[0] || '';
 
                         return `
                         <tr style="${isDone ? 'opacity:0.65;background:rgba(52,211,153,0.05)' : ''}">
                             <td style="text-align:center">
-                                <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${it.requestId}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
+                                <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${firstReqId}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
                             </td>
                             <td>
                                 <b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b>
                                 ${it.isUrgent ? '<span class="badge-urgent" style="font-size:10px;padding:2px 6px;margin-left:4px;">🚨 URGENTE</span>' : ''}
                                 ${notaHtml}
                             </td>
-                            <td><b style="color:var(--gold-soft)">${fmtNum(it.cantidadTotal)} ${escapeHtml(it.unidad)}</b></td>
-                            <td><span style="font-size:11.5px;color:var(--muted)">${auts}</span></td>
-                            <td><span style="font-size:11.5px;color:var(--text);font-weight:500;">${fchs || '—'}</span></td>
-                            <td><span class="hist-ref">${histTag}</span></td>
+                            <td><b style="color:var(--gold-soft)">${fmtNum(cantTot)} ${escapeHtml(it.unidad)}</b></td>
+                            <td>
+                                <div style="font-size:11.5px;color:var(--text);font-weight:500;">${fchs || '—'}</div>
+                                <div style="font-size:11px;color:var(--muted);">${auts}</div>
+                            </td>
+                            <td>${histTag}</td>
+                            <td>
+                                <input type="number" step="0.1" min="0" class="price-inp supp-price-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${priceVal}" placeholder="0.00" style="width:80px;">
+                            </td>
+                            <td style="text-align:right;font-weight:700;color:var(--gold-soft)">S/ ${fmtNum(subtotal || 0)}</td>
                             <td style="text-align:center">
-                                <button class="btn btn-sm btn-void" style="padding:3px 8px;font-size:12px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);cursor:pointer;border-radius:6px;" onclick="quitarLineaProveedor('${escapeHtml(provName)}', '${escapeHtml(it.codigo)}', '${escapeHtml(it.nombre)}')" title="Quitar esta línea del pedido">🗑️ Quitar</button>
+                                <button title="Quitar esta línea de la lista de compras" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:13px;" onclick="quitarLineaProveedor('${escapeHtml(provName)}', '${escapeHtml(it.codigo)}', '${escapeHtml(it.nombre)}')">🗑️</button>
                             </td>
                         </tr>`;
                     }).join('');
@@ -1712,20 +1730,98 @@ $isAdmin = ($role === 'admin');
                                 <thead>
                                     <tr>
                                         <th style="width:36px;text-align:center">✓</th>
-                                        <th>Insumo</th>
-                                        <th>Cantidad Total</th>
-                                        <th>Solicitado por</th>
-                                        <th>Fecha de Pedido</th>
-                                        <th>Último Precio Ref</th>
-                                        <th style="width:90px;text-align:center">Acción</th>
+                                        <th style="min-width:200px;">Insumo / Descripción</th>
+                                        <th style="min-width:120px;">Cantidad Total</th>
+                                        <th style="min-width:130px;">Solicitado por / Fecha</th>
+                                        <th style="min-width:100px;">Último Precio</th>
+                                        <th style="min-width:100px;">Precio Unit. (S/)</th>
+                                        <th style="text-align:right;min-width:90px;">Subtotal</th>
+                                        <th style="width:44px;text-align:center">Quitar</th>
                                     </tr>
                                 </thead>
                                 <tbody>${tableRows}</tbody>
                             </table>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap;">
+                                <div style="font-size:13.5px;color:var(--text)">
+                                    ${suppTotalMonto > 0 ? `Total estimado proveedor: <strong style="color:var(--gold-soft)">S/ ${fmtNum(suppTotalMonto)}</strong>` : ''}
+                                </div>
+                                <button class="btn btn-gold btn-sm" onclick="saveSupplierPrices(\`${encodeURIComponent(provName)}\`)">💾 Guardar Precios del Proveedor</button>
+                            </div>
                         </div>
                     </div>`;
                 }).join('');
             }
+
+            window.saveSupplierPrices = async function(encodedProvName) {
+                const provName = decodeURIComponent(encodedProvName);
+                const inputs = document.querySelectorAll(`.supp-price-inp[data-prov="${encodeURIComponent(provName)}"]`);
+                if (!inputs.length) return;
+
+                const priceMap = {};
+                inputs.forEach(inp => {
+                    const code = inp.dataset.code;
+                    const val = parseFloat(inp.value);
+                    if (code && !isNaN(val) && val >= 0) {
+                        priceMap[code] = val;
+                    }
+                });
+
+                const updatePromises = [];
+
+                pedidos.forEach(p => {
+                    if (!p.items || p.estado === 'anulado') return;
+
+                    let modified = false;
+                    const updatedItems = p.items.map(it => {
+                        const prod = catMap[it.codigo];
+                        const itemProv = it.proveedor || (prod ? prod.proveedor : 'Otro') || 'Otro';
+
+                        if ((itemProv === provName || provName === 'Otro') && priceMap[it.codigo] !== undefined) {
+                            modified = true;
+                            const newPrice = priceMap[it.codigo];
+                            const cant = Number(it.cantidad) || 0;
+                            return {
+                                ...it,
+                                precio: newPrice,
+                                subtotal: Math.round(cant * newPrice * 100) / 100
+                            };
+                        }
+                        return it;
+                    });
+
+                    if (modified) {
+                        updatePromises.push(
+                            fetch('api.php?action=editar_pedido', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ request_id: p.request_id, items: updatedItems })
+                            }).then(r => r.json())
+                        );
+                    }
+                });
+
+                if (!updatePromises.length) {
+                    showAlert(false, 'Aviso', 'No se ingresaron cambios de precio para actualizar.');
+                    return;
+                }
+
+                try {
+                    const results = await Promise.all(updatePromises);
+                    let errorMsg = null;
+                    results.forEach(res => {
+                        if (!res.success && res.error) errorMsg = res.error;
+                    });
+
+                    if (errorMsg) {
+                        showAlert(false, 'Error', errorMsg);
+                    } else {
+                        showAlert(true, 'Precios guardados', `Se actualizaron correctamente los precios para el proveedor ${provName}.`);
+                    }
+                    await loadPedidos();
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
 
             window.quitarLineaProveedor = async function(provName, codigo, nombre) {
                 if (!confirm(`¿Estás seguro de quitar la línea "${nombre}" del proveedor ${provName}?`)) return;
