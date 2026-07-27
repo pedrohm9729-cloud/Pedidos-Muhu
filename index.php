@@ -240,6 +240,17 @@ $isAdmin = ($role === 'admin');
         }
         .search-input:focus { outline: none; border-color: var(--gold-line); box-shadow: 0 0 0 3px var(--gold-dim); }
 
+        select, select option {
+            background-color: #ffffff !important;
+            color: #111111 !important;
+            font-size: 13.5px;
+            font-weight: 600;
+        }
+        select option:hover, select option:focus, select option:checked {
+            background-color: #e5e7eb !important;
+            color: #000000 !important;
+        }
+
         /* Chips: sin scrollbar visible, con wrap en escritorio */
         .chips {
             display: flex; gap: 8px; flex-wrap: wrap;
@@ -744,23 +755,23 @@ $isAdmin = ($role === 'admin');
                         <div class="chip" data-estado="completado">Completados</div>
                         <div class="chip" data-estado="anulado">Anulados</div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:4px 10px;border-radius:10px;">
-                        <span style="font-size:12.5px;color:var(--gold-soft);font-weight:600;">👤 Solicitante:</span>
-                        <select id="solicitanteFilter" style="background:transparent;color:var(--text);border:none;outline:none;font-size:12.5px;font-weight:600;cursor:pointer;">
-                            <option value="todos" style="background:var(--bg-card);color:var(--text);">Todos los solicitantes</option>
+                    <div style="display:flex;align-items:center;gap:6px;background:#ffffff;border:1px solid var(--border);padding:4px 10px;border-radius:10px;">
+                        <span style="font-size:12.5px;color:#111111;font-weight:700;">👤 Solicitante:</span>
+                        <select id="solicitanteFilter" style="background:#ffffff;color:#111111;border:none;outline:none;font-size:12.5px;font-weight:700;cursor:pointer;">
+                            <option value="todos" style="background:#ffffff;color:#111111;">Todos los solicitantes</option>
                         </select>
                     </div>
-                    <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:4px 10px;border-radius:10px;">
-                        <span style="font-size:12.5px;color:var(--gold-soft);font-weight:600;">📅 Fecha:</span>
-                        <select id="fechaFilter" style="background:transparent;color:var(--text);border:none;outline:none;font-size:12.5px;font-weight:600;cursor:pointer;">
-                            <option value="todas" style="background:var(--bg-card);color:var(--text);">Todas las fechas</option>
-                            <option value="hoy" style="background:var(--bg-card);color:var(--text);">Hoy</option>
-                            <option value="ayer" style="background:var(--bg-card);color:var(--text);">Ayer</option>
-                            <option value="7dias" style="background:var(--bg-card);color:var(--text);">Últimos 7 días</option>
-                            <option value="mes" style="background:var(--bg-card);color:var(--text);">Este mes</option>
-                            <option value="custom" style="background:var(--bg-card);color:var(--text);">Elegir fecha...</option>
+                    <div style="display:flex;align-items:center;gap:6px;background:#ffffff;border:1px solid var(--border);padding:4px 10px;border-radius:10px;">
+                        <span style="font-size:12.5px;color:#111111;font-weight:700;">📅 Fecha:</span>
+                        <select id="fechaFilter" style="background:#ffffff;color:#111111;border:none;outline:none;font-size:12.5px;font-weight:700;cursor:pointer;">
+                            <option value="todas" style="background:#ffffff;color:#111111;">Todas las fechas</option>
+                            <option value="hoy" style="background:#ffffff;color:#111111;">Hoy</option>
+                            <option value="ayer" style="background:#ffffff;color:#111111;">Ayer</option>
+                            <option value="7dias" style="background:#ffffff;color:#111111;">Últimos 7 días</option>
+                            <option value="mes" style="background:#ffffff;color:#111111;">Este mes</option>
+                            <option value="custom" style="background:#ffffff;color:#111111;">Elegir fecha...</option>
                         </select>
-                        <input type="date" id="fechaCustomInput" style="display:none;background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);padding:2px 6px;border-radius:6px;font-size:12px;">
+                        <input type="date" id="fechaCustomInput" style="display:none;background:#ffffff;color:#111111;border:1px solid var(--border);padding:2px 6px;border-radius:6px;font-size:12px;">
                     </div>
                 </div>
             </div>
@@ -1406,9 +1417,9 @@ $isAdmin = ($role === 'admin');
                 const currentVal = solicitanteSelect.value || 'todos';
                 const autores = Array.from(new Set(pedidos.map(p => p.autor).filter(Boolean))).sort();
 
-                let options = `<option value="todos" style="background:var(--bg-card);color:var(--text);">Todos los solicitantes</option>`;
+                let options = `<option value="todos" style="background:#ffffff;color:#111111;">Todos los solicitantes</option>`;
                 autores.forEach(a => {
-                    options += `<option value="${escapeHtml(a)}" style="background:var(--bg-card);color:var(--text);">👤 ${escapeHtml(a)}</option>`;
+                    options += `<option value="${escapeHtml(a)}" style="background:#ffffff;color:#111111;">👤 ${escapeHtml(a)}</option>`;
                 });
                 solicitanteSelect.innerHTML = options;
                 solicitanteSelect.value = autores.includes(currentVal) ? currentVal : 'todos';
@@ -2216,7 +2227,7 @@ $isAdmin = ($role === 'admin');
                 if (!selectEl) return;
 
                 const q = (query || '').toLowerCase().trim();
-                let options = `<option value="">-- Escribir insumo libre o elegir del catálogo --</option>`;
+                let options = `<option value="" style="background:#ffffff;color:#111111;">-- Escribir insumo libre o elegir del catálogo --</option>`;
                 let firstMatchingCode = null;
                 
                 const list = (catalog || []).slice().sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
@@ -2229,7 +2240,7 @@ $isAdmin = ($role === 'admin');
                         if (!firstMatchingCode && q) firstMatchingCode = code;
                         const hist = (typeof priceHistMap !== 'undefined' && priceHistMap) ? priceHistMap[p.codigo] : null;
                         const priceStr = hist ? ` (Ref: S/ ${fmtNum(hist.precio)})` : '';
-                        options += `<option value="${escapeHtml(code)}">${escapeHtml(name)}${priceStr} - ${escapeHtml(prov)}</option>`;
+                        options += `<option value="${escapeHtml(code)}" style="background:#ffffff;color:#111111;">${escapeHtml(name)}${priceStr} - ${escapeHtml(prov)}</option>`;
                     }
                 });
 
