@@ -152,6 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $actual = (int)$st->fetchColumn();
             $nuevo  = $actual ? 0 : 1;
             $db->prepare('UPDATE catalogo SET activo=? WHERE codigo=?')->execute([$nuevo, $codigo]);
+            if (!empty($_POST['ajax'])) {
+                header('Content-Type: application/json; charset=UTF-8');
+                echo json_encode(['success' => true, 'nuevo_activo' => $nuevo]);
+                exit;
+            }
             $msg = $nuevo ? 'Ítem activado.' : 'Ítem desactivado (no aparecerá en pedidos).';
         }
     }
@@ -160,6 +165,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $codigo = trim($_POST['codigo'] ?? '');
         if ($codigo) {
             $db->prepare('DELETE FROM catalogo WHERE codigo=?')->execute([$codigo]);
+            if (!empty($_POST['ajax'])) {
+                header('Content-Type: application/json; charset=UTF-8');
+                echo json_encode(['success' => true, 'codigo' => $codigo]);
+                exit;
+            }
             $msg = 'Ítem eliminado permanentemente.';
         }
     }
@@ -597,17 +607,8 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
                 <td>
                     <div class="acts">
                         <a href="?editar=<?= urlencode($it['codigo']) ?>" class="btn btn-ghost btn-sm">✏️ Editar</a>
-                        <form method="POST" style="display:inline">
-                            <input type="hidden" name="accion" value="toggle">
-                            <input type="hidden" name="codigo" value="<?= htmlspecialchars($it['codigo']) ?>">
-                            <button class="btn btn-ghost btn-sm"><?= $it['activo'] ? '🚫' : '✅' ?></button>
-                        </form>
-                        <form method="POST" style="display:inline"
-                            onsubmit="return confirm('¿Eliminar «<?= addslashes(htmlspecialchars($it['nombre'])) ?>» para siempre?')">
-                            <input type="hidden" name="accion" value="eliminar">
-                            <input type="hidden" name="codigo" value="<?= htmlspecialchars($it['codigo']) ?>">
-                            <button class="btn btn-danger btn-sm">🗑️</button>
-                        </form>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="toggleItemAjax('<?= htmlspecialchars($it['codigo']) ?>', this)"><?= $it['activo'] ? '🚫' : '✅' ?></button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="eliminarItemAjax('<?= htmlspecialchars($it['codigo']) ?>', '<?= addslashes(htmlspecialchars($it['nombre'])) ?>', this)">🗑️</button>
                     </div>
                 </td>
             </tr>
@@ -626,7 +627,94 @@ function filtrar(q) {
     });
 }
 
+window.eliminarItemAjax = async function(codigo, nombre, btnEl) {
+    if (!confirm(`¿Eliminar «${nombre}» para siempre?`)) return;
+
+    btnEl.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.append('accion', 'eliminar');
+        fd.append('codigo', codigo);
+        fd.append('ajax', '1');
+
+        const r = await fetch('catalogo-admin.php', { method: 'POST', body: fd });
+        const data = await r.json();
+
+        if (r.ok && data.success) {
+            const tr = btnEl.closest('tr');
+            if (tr) {
+                tr.style.transition = 'opacity 0.25s, transform 0.25s';
+                tr.style.opacity = '0';
+                tr.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    tr.remove();
+                    const searchInp = document.querySelector('.search-inp');
+                    if (searchInp && searchInp.value) filtrar(searchInp.value);
+                }, 250);
+            }
+        } else {
+            alert('No se pudo eliminar el ítem.');
+            btnEl.disabled = false;
+        }
+    } catch (e) {
+        alert('Error al conectar con el servidor.');
+        btnEl.disabled = false;
+    }
+};
+
+window.toggleItemAjax = async function(codigo, btnEl) {
+    btnEl.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.append('accion', 'toggle');
+        fd.append('codigo', codigo);
+        fd.append('ajax', '1');
+
+        const r = await fetch('catalogo-admin.php', { method: 'POST', body: fd });
+        const data = await r.json();
+
+        if (r.ok && data.success) {
+            const tr = btnEl.closest('tr');
+            if (tr) {
+                const dot = tr.querySelector('.dot');
+                if (dot) {
+                    if (data.nuevo_activo) {
+                        dot.className = 'dot on';
+                        dot.title = 'Activo';
+                        btnEl.textContent = '🚫';
+                        tr.classList.remove('row-off');
+                    } else {
+                        dot.className = 'dot off';
+                        dot.title = 'Inactivo';
+                        btnEl.textContent = '✅';
+                        tr.classList.add('row-off');
+                    }
+                }
+            }
+        } else {
+            alert('No se pudo cambiar el estado.');
+        }
+    } catch (e) {
+        alert('Error al conectar con el servidor.');
+    } finally {
+        btnEl.disabled = false;
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+    const searchInp = document.querySelector('.search-inp');
+    if (searchInp) {
+        const savedQ = sessionStorage.getItem('cat_search_q');
+        if (savedQ) {
+            searchInp.value = savedQ;
+            filtrar(savedQ);
+        }
+        searchInp.addEventListener('input', e => {
+            sessionStorage.setItem('cat_search_q', e.target.value);
+            filtrar(e.target.value);
+        });
+    }
+
     const catInput = document.querySelector('input[name="categoria"]');
     const codeInput = document.getElementById('codigoInput');
 
