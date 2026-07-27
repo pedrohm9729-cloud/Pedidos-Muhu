@@ -1686,7 +1686,12 @@ $isAdmin = ($role === 'admin');
                                 ${it.isUrgent ? '<span class="badge-urgent" style="font-size:10px;padding:2px 6px;margin-left:4px;">🚨 URGENTE</span>' : ''}
                                 ${notaHtml}
                             </td>
-                            <td><b style="color:var(--gold-soft)">${fmtNum(cantTot)} ${escapeHtml(it.unidad)}</b></td>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:4px;">
+                                    <input type="number" step="0.01" min="0.01" class="cant-inp supp-cant-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${cantTot}" style="width:75px;background:rgba(255,255,255,0.05);color:var(--gold-soft);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:13px;font-weight:700;" title="Modificar cantidad total">
+                                    <input type="text" class="unit-inp supp-unit-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${escapeHtml(it.unidad)}" style="width:55px;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 4px;font-size:11.5px;" title="Unidad">
+                                </div>
+                            </td>
                             <td>
                                 <div style="font-size:11.5px;color:var(--text);font-weight:500;">${fchs || '—'}</div>
                                 <div style="font-size:11px;color:var(--muted);">${auts}</div>
@@ -1731,7 +1736,7 @@ $isAdmin = ($role === 'admin');
                                     <tr>
                                         <th style="width:36px;text-align:center">✓</th>
                                         <th style="min-width:200px;">Insumo / Descripción</th>
-                                        <th style="min-width:120px;">Cantidad Total</th>
+                                        <th style="min-width:140px;">Cantidad Total</th>
                                         <th style="min-width:130px;">Solicitado por / Fecha</th>
                                         <th style="min-width:100px;">Último Precio</th>
                                         <th style="min-width:100px;">Precio Unit. (S/)</th>
@@ -1745,24 +1750,46 @@ $isAdmin = ($role === 'admin');
                                 <div style="font-size:13.5px;color:var(--text)">
                                     ${suppTotalMonto > 0 ? `Total estimado proveedor: <strong style="color:var(--gold-soft)">S/ ${fmtNum(suppTotalMonto)}</strong>` : ''}
                                 </div>
-                                <button class="btn btn-gold btn-sm" onclick="saveSupplierPrices(\`${encodeURIComponent(provName)}\`)">💾 Guardar Precios del Proveedor</button>
+                                <button class="btn btn-gold btn-sm" onclick="saveSupplierEdits(\`${encodeURIComponent(provName)}\`)">💾 Guardar Precios y Cantidades</button>
                             </div>
                         </div>
                     </div>`;
                 }).join('');
             }
 
-            window.saveSupplierPrices = async function(encodedProvName) {
+            window.saveSupplierEdits = async function(encodedProvName) {
                 const provName = decodeURIComponent(encodedProvName);
-                const inputs = document.querySelectorAll(`.supp-price-inp[data-prov="${encodeURIComponent(provName)}"]`);
-                if (!inputs.length) return;
+                const priceInputs = document.querySelectorAll(`.supp-price-inp[data-prov="${encodeURIComponent(provName)}"]`);
+                const cantInputs = document.querySelectorAll(`.supp-cant-inp[data-prov="${encodeURIComponent(provName)}"]`);
+                const unitInputs = document.querySelector(`.supp-unit-inp[data-prov="${encodeURIComponent(provName)}"]`);
 
-                const priceMap = {};
-                inputs.forEach(inp => {
+                if (!priceInputs.length && !cantInputs.length) return;
+
+                const dataMap = {};
+                cantInputs.forEach(inp => {
+                    const code = inp.dataset.code;
+                    const val = parseFloat(inp.value);
+                    if (code && !isNaN(val) && val > 0) {
+                        dataMap[code] = dataMap[code] || {};
+                        dataMap[code].cantidad = val;
+                    }
+                });
+
+                document.querySelectorAll(`.supp-unit-inp[data-prov="${encodeURIComponent(provName)}"]`).forEach(inp => {
+                    const code = inp.dataset.code;
+                    const val = inp.value.trim();
+                    if (code && val) {
+                        dataMap[code] = dataMap[code] || {};
+                        dataMap[code].unidad = val;
+                    }
+                });
+
+                priceInputs.forEach(inp => {
                     const code = inp.dataset.code;
                     const val = parseFloat(inp.value);
                     if (code && !isNaN(val) && val >= 0) {
-                        priceMap[code] = val;
+                        dataMap[code] = dataMap[code] || {};
+                        dataMap[code].precio = val;
                     }
                 });
 
@@ -1776,14 +1803,19 @@ $isAdmin = ($role === 'admin');
                         const prod = catMap[it.codigo];
                         const itemProv = it.proveedor || (prod ? prod.proveedor : 'Otro') || 'Otro';
 
-                        if ((itemProv === provName || provName === 'Otro') && priceMap[it.codigo] !== undefined) {
+                        if ((itemProv === provName || provName === 'Otro') && dataMap[it.codigo] !== undefined) {
                             modified = true;
-                            const newPrice = priceMap[it.codigo];
-                            const cant = Number(it.cantidad) || 0;
+                            const edits = dataMap[it.codigo];
+                            const newPrice = (edits.precio !== undefined) ? edits.precio : (it.precio || 0);
+                            const newCant = (edits.cantidad !== undefined) ? edits.cantidad : (it.cantidad || 0);
+                            const newUnit = (edits.unidad !== undefined) ? edits.unidad : (it.unidad || 'und');
+                            
                             return {
                                 ...it,
                                 precio: newPrice,
-                                subtotal: Math.round(cant * newPrice * 100) / 100
+                                cantidad: newCant,
+                                unidad: newUnit,
+                                subtotal: Math.round(newCant * newPrice * 100) / 100
                             };
                         }
                         return it;
@@ -1801,7 +1833,7 @@ $isAdmin = ($role === 'admin');
                 });
 
                 if (!updatePromises.length) {
-                    showAlert(false, 'Aviso', 'No se ingresaron cambios de precio para actualizar.');
+                    showAlert(false, 'Aviso', 'No se ingresaron cambios para actualizar.');
                     return;
                 }
 
@@ -1815,13 +1847,14 @@ $isAdmin = ($role === 'admin');
                     if (errorMsg) {
                         showAlert(false, 'Error', errorMsg);
                     } else {
-                        showAlert(true, 'Precios guardados', `Se actualizaron correctamente los precios para el proveedor ${provName}.`);
+                        showAlert(true, 'Cambios guardados', `Se actualizaron correctamente las cantidades y precios para ${provName}.`);
                     }
                     await loadPedidos();
                 } catch (err) {
                     showAlert(false, 'Error', err.message);
                 }
             };
+            window.saveSupplierPrices = window.saveSupplierEdits;
 
             window.quitarLineaProveedor = async function(provName, codigo, nombre) {
                 if (!confirm(`¿Estás seguro de quitar la línea "${nombre}" del proveedor ${provName}?`)) return;
