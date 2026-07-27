@@ -1623,12 +1623,7 @@ $isAdmin = ($role === 'admin');
 
             function renderPurchasingBySupplier() {
                 if (!purchasingEl) return;
-                // En la Hoja de Compras por Proveedor, mostrar todos los insumos activos (enviado, preparación y completados) para que no se oculten al guardar precios
-                const list = pedidos.filter(p => {
-                    if (filtro === 'anulado') return p.estado === 'anulado';
-                    if (filtro === 'completado') return p.estado === 'completado';
-                    return p.estado !== 'anulado';
-                });
+                const list = pedidos.filter(matchFilter);
                 if (!list.length) {
                     purchasingEl.innerHTML = `<div class="empty"><p>No hay pedidos en esta vista para generar hoja de compras.</p></div>`;
                     return;
