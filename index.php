@@ -849,20 +849,42 @@ $isAdmin = ($role === 'admin');
 
             <!-- Modal agregar insumo a pedido existente (Admin) -->
             <div class="modal" id="modalAddInsumoOrder">
-                <div class="modal-card">
+                <div class="modal-card" style="max-width:440px;">
                     <div class="modal-ico" style="font-size:1.5rem;">➕</div>
                     <h3 class="modal-title">Agregar insumo al pedido</h3>
-                    <p class="modal-desc" style="margin-bottom:14px;">Añade un insumo adicional a este pedido enviado.</p>
-                    <input id="addInsumoNombre" type="text" class="search-input" placeholder="Nombre del insumo / producto" style="margin-bottom:10px;width:100%;" maxlength="100">
+                    <p class="modal-desc" style="margin-bottom:14px;">Añade un insumo del catálogo o personalizado a este pedido.</p>
+                    
+                    <label style="font-size:12px;color:var(--gold-soft);font-weight:600;display:block;margin-bottom:4px;">Seleccionar del catálogo o escribir insumo:</label>
+                    <select id="addInsumoCatalogSelect" class="search-input" style="margin-bottom:10px;width:100%;background:var(--bg-card);color:var(--text);" onchange="onSelectCatalogItemForAdd(this)">
+                    </select>
+                    
+                    <input id="addInsumoNombre" type="text" class="search-input" placeholder="Nombre del insumo / descripción" style="margin-bottom:10px;width:100%;" maxlength="100">
+                    
                     <div style="display:flex;gap:10px;margin-bottom:10px;">
-                        <input id="addInsumoCantidad" type="number" class="search-input" placeholder="Cantidad" min="0.01" step="0.01" style="flex:1;">
-                        <input id="addInsumoUnidad" type="text" class="search-input" placeholder="Unidad (ej. und, kg)" style="flex:1;" maxlength="20">
+                        <div style="flex:1;">
+                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Cantidad:</label>
+                            <input id="addInsumoCantidad" type="number" class="search-input" placeholder="Cantidad" min="0.01" step="0.01" value="1" style="width:100%;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Unidad:</label>
+                            <input id="addInsumoUnidad" type="text" class="search-input" placeholder="Ej. kg, und" style="width:100%;" maxlength="20">
+                        </div>
                     </div>
-                    <input id="addInsumoProveedor" type="text" class="search-input" placeholder="Proveedor (ej. Biopacking, Otro)" style="margin-bottom:10px;width:100%;">
-                    <input id="addInsumoPrecio" type="number" class="search-input" placeholder="Precio unitario (S/) (opcional)" min="0" step="0.1" style="margin-bottom:18px;width:100%;">
+                    
+                    <div style="display:flex;gap:10px;margin-bottom:18px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Proveedor:</label>
+                            <input id="addInsumoProveedor" type="text" class="search-input" placeholder="Ej. Biopacking" style="width:100%;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Precio Unit. (S/):</label>
+                            <input id="addInsumoPrecio" type="number" class="search-input" placeholder="0.00" min="0" step="0.1" style="width:100%;">
+                        </div>
+                    </div>
+                    
                     <div style="display:flex;gap:10px;">
-                        <button class="btn" id="btnAddInsumoCancel" style="flex:1;">Cancelar</button>
-                        <button class="btn btn-gold" id="btnAddInsumoOk" style="flex:1;">Agregar al pedido</button>
+                        <button class="btn" id="btnAddInsumoCancel" onclick="closeAddItemModal()" style="flex:1;">Cancelar</button>
+                        <button class="btn btn-gold" id="btnAddInsumoOk" onclick="confirmAddItemToOrder()" style="flex:1;">➕ Agregar al pedido</button>
                     </div>
                 </div>
             </div>
@@ -2049,6 +2071,158 @@ $isAdmin = ($role === 'admin');
                         await loadPedidos();
                     } else {
                         throw new Error(data.error || 'No se pudieron guardar los cambios.');
+                    }
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
+
+            let currentRequestIdForAdd = null;
+
+            window.onSelectCatalogItemForAdd = function(selectEl) {
+                const code = selectEl.value;
+                const nameInp = document.getElementById('addInsumoNombre');
+                const unitInp = document.getElementById('addInsumoUnidad');
+                const provInp = document.getElementById('addInsumoProveedor');
+                const priceInp = document.getElementById('addInsumoPrecio');
+
+                if (!code) {
+                    nameInp.value = '';
+                    unitInp.value = 'und';
+                    provInp.value = 'Otro';
+                    priceInp.value = '';
+                    return;
+                }
+
+                const prod = catMap[code];
+                if (prod) {
+                    nameInp.value = prod.nombre || '';
+                    unitInp.value = prod.unidad || 'und';
+                    provInp.value = prod.proveedor || 'Otro';
+                    const hist = priceHistMap[code];
+                    if (hist && hist.precio) {
+                        priceInp.value = hist.precio;
+                    } else {
+                        priceInp.value = '';
+                    }
+                }
+            };
+
+            window.openAddItemModal = function(request_id) {
+                currentRequestIdForAdd = request_id;
+                const modal = document.getElementById('modalAddInsumoOrder');
+                const selectEl = document.getElementById('addInsumoCatalogSelect');
+                const nameInp = document.getElementById('addInsumoNombre');
+                const cantInp = document.getElementById('addInsumoCantidad');
+                const unitInp = document.getElementById('addInsumoUnidad');
+                const provInp = document.getElementById('addInsumoProveedor');
+                const priceInp = document.getElementById('addInsumoPrecio');
+
+                let options = `<option value="">-- Escribir insumo libre o elegir del catálogo --</option>`;
+                const sortedProds = (catalogo || []).slice().sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+                sortedProds.forEach(p => {
+                    const hist = priceHistMap[p.codigo];
+                    const priceStr = hist ? ` (Ref: S/ ${fmtNum(hist.precio)})` : '';
+                    options += `<option value="${escapeHtml(p.codigo)}">${escapeHtml(p.nombre)}${priceStr} - ${escapeHtml(p.proveedor || 'Otro')}</option>`;
+                });
+                selectEl.innerHTML = options;
+                selectEl.value = '';
+
+                nameInp.value = '';
+                cantInp.value = '1';
+                unitInp.value = 'und';
+                provInp.value = 'Otro';
+                priceInp.value = '';
+
+                if (modal) modal.style.display = 'flex';
+            };
+
+            window.closeAddItemModal = function() {
+                const modal = document.getElementById('modalAddInsumoOrder');
+                if (modal) modal.style.display = 'none';
+                currentRequestIdForAdd = null;
+            };
+
+            window.confirmAddItemToOrder = async function() {
+                if (!currentRequestIdForAdd) return;
+
+                const p = pedidos.find(x => x.request_id === currentRequestIdForAdd);
+                if (!p) return;
+
+                const selectEl = document.getElementById('addInsumoCatalogSelect');
+                const nameInp = document.getElementById('addInsumoNombre');
+                const cantInp = document.getElementById('addInsumoCantidad');
+                const unitInp = document.getElementById('addInsumoUnidad');
+                const provInp = document.getElementById('addInsumoProveedor');
+                const priceInp = document.getElementById('addInsumoPrecio');
+
+                const selectedCode = selectEl ? selectEl.value : '';
+                let name = nameInp ? nameInp.value.trim() : '';
+                const cant = cantInp ? (parseFloat(cantInp.value) || 0) : 0;
+                let unit = unitInp ? unitInp.value.trim() : 'und';
+                let prov = provInp ? provInp.value.trim() : 'Otro';
+                const price = priceInp ? (parseFloat(priceInp.value) || 0) : 0;
+
+                if (cant <= 0) {
+                    showAlert(false, 'Cantidad requerida', 'Ingresa una cantidad mayor a 0.');
+                    return;
+                }
+
+                let code = selectedCode;
+                if (!code) {
+                    code = 'LIBRE-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+                    if (!name) name = 'Ítem Libre (' + code + ')';
+                } else {
+                    const prod = catMap[code];
+                    if (prod) {
+                        if (!name) name = prod.nombre;
+                        if (!unit) unit = prod.unidad || 'und';
+                        if (!prov || prov === 'Otro') prov = prod.proveedor || 'Otro';
+                    }
+                }
+
+                const existingItems = [];
+                (p.items || []).forEach((it, idx) => {
+                    const nInp = document.querySelector(`.name-inp[data-req="${p.request_id}"][data-idx="${idx}"]`);
+                    const cInp = document.querySelector(`.cant-inp[data-req="${p.request_id}"][data-idx="${idx}"]`);
+                    const uInp = document.querySelector(`.unit-inp[data-req="${p.request_id}"][data-idx="${idx}"]`);
+                    const prInp = document.querySelector(`.prov-inp[data-req="${p.request_id}"][data-idx="${idx}"]`);
+                    const pInp = document.querySelector(`.price-inp[data-req="${p.request_id}"][data-idx="${idx}"]`);
+
+                    existingItems.push({
+                        codigo: it.codigo,
+                        nombre: nInp ? nInp.value.trim() : (it.nombre || ''),
+                        unidad: uInp ? uInp.value.trim() : (it.unidad || 'und'),
+                        cantidad: cInp ? (parseFloat(cInp.value) || 0) : (it.cantidad || 0),
+                        proveedor: prInp ? prInp.value.trim() : (it.proveedor || 'Otro'),
+                        precio: pInp ? (parseFloat(pInp.value) || 0) : (it.precio || 0),
+                        estado_item: it.estado_item || 'pendiente'
+                    });
+                });
+
+                existingItems.push({
+                    codigo: code,
+                    nombre: name,
+                    unidad: unit || 'und',
+                    cantidad: cant,
+                    proveedor: prov || 'Otro',
+                    precio: price,
+                    estado_item: 'pendiente'
+                });
+
+                try {
+                    const r = await fetch('api.php?action=editar_pedido', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ request_id: p.request_id, items: existingItems })
+                    });
+                    const data = await r.json();
+                    if (r.ok && data.success) {
+                        closeAddItemModal();
+                        showAlert(true, 'Ítem agregado', `Se agregó "${name}" al pedido.`);
+                        await loadPedidos();
+                    } else {
+                        throw new Error(data.error || 'No se pudo agregar el insumo.');
                     }
                 } catch (err) {
                     showAlert(false, 'Error', err.message);
