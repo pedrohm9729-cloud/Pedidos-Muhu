@@ -968,6 +968,7 @@ $isAdmin = ($role === 'admin');
         // ════════════════════════════════════════════
         let catalog = [];
         const catMap = {};
+        let priceHistMap = {};
         async function loadCatalog() {
             const r = await fetch('api.php?action=catalogo');
             if (r.status === 401) { window.location.href = 'login.php'; throw new Error('401'); }
@@ -1367,7 +1368,6 @@ $isAdmin = ($role === 'admin');
             const btnModeProveedores = document.getElementById('btnModeProveedores');
 
             let pedidos = [];
-            let priceHistMap = {};
             let filtro = 'curso';
             let mode = 'pedidos'; // 'pedidos' o 'proveedores'
             let expandedOrders = {}; // request_id -> bool
@@ -2123,7 +2123,7 @@ $isAdmin = ($role === 'admin');
                     const code = p.codigo || '';
                     
                     if (!q || name.toLowerCase().includes(q) || prov.toLowerCase().includes(q) || code.toLowerCase().includes(q)) {
-                        const hist = priceHistMap[p.codigo];
+                        const hist = (typeof priceHistMap !== 'undefined' && priceHistMap) ? priceHistMap[p.codigo] : null;
                         const priceStr = hist ? ` (Ref: S/ ${fmtNum(hist.precio)})` : '';
                         options += `<option value="${escapeHtml(code)}">${escapeHtml(name)}${priceStr} - ${escapeHtml(prov)}</option>`;
                     }
