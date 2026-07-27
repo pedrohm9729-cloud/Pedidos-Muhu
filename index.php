@@ -847,6 +847,26 @@ $isAdmin = ($role === 'admin');
                 </div>
             </div>
 
+            <!-- Modal agregar insumo a pedido existente (Admin) -->
+            <div class="modal" id="modalAddInsumoOrder">
+                <div class="modal-card">
+                    <div class="modal-ico" style="font-size:1.5rem;">➕</div>
+                    <h3 class="modal-title">Agregar insumo al pedido</h3>
+                    <p class="modal-desc" style="margin-bottom:14px;">Añade un insumo adicional a este pedido enviado.</p>
+                    <input id="addInsumoNombre" type="text" class="search-input" placeholder="Nombre del insumo / producto" style="margin-bottom:10px;width:100%;" maxlength="100">
+                    <div style="display:flex;gap:10px;margin-bottom:10px;">
+                        <input id="addInsumoCantidad" type="number" class="search-input" placeholder="Cantidad" min="0.01" step="0.01" style="flex:1;">
+                        <input id="addInsumoUnidad" type="text" class="search-input" placeholder="Unidad (ej. und, kg)" style="flex:1;" maxlength="20">
+                    </div>
+                    <input id="addInsumoProveedor" type="text" class="search-input" placeholder="Proveedor (ej. Biopacking, Otro)" style="margin-bottom:10px;width:100%;">
+                    <input id="addInsumoPrecio" type="number" class="search-input" placeholder="Precio unitario (S/) (opcional)" min="0" step="0.1" style="margin-bottom:18px;width:100%;">
+                    <div style="display:flex;gap:10px;">
+                        <button class="btn" id="btnAddInsumoCancel" style="flex:1;">Cancelar</button>
+                        <button class="btn btn-gold" id="btnAddInsumoOk" style="flex:1;">Agregar al pedido</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Barra flotante (móvil) -->
             <div class="cart-bar" id="cartBar">
                 <div class="cb-left">
@@ -1454,9 +1474,8 @@ $isAdmin = ($role === 'admin');
                     } else {
                         const rows = (p.items || []).map((it, idx) => {
                             const prod = catMap[it.codigo];
-                            let name = prod ? prod.nombre : (it.nombre || '');
-                            if (!name) name = it.codigo.startsWith('LIBRE-') ? `Ítem Libre (${it.codigo})` : it.codigo;
-                            const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
+                            let name = it.nombre || (prod ? prod.nombre : (it.codigo.startsWith('LIBRE-') ? `Ítem Libre` : it.codigo));
+                            const unit = it.unidad || (prod ? prod.unidad : 'und');
                             const defaultProv = prod ? (prod.proveedor || 'Otro') : (it.proveedor || 'Otro');
                             const prov = it.proveedor || defaultProv;
                             const price = (it.precio !== undefined && it.precio > 0) ? it.precio : '';
@@ -1472,12 +1491,22 @@ $isAdmin = ($role === 'admin');
                                 <td style="text-align:center">
                                     <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${p.request_id}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
                                 </td>
-                                <td><b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(name)}</b></td>
-                                <td>${fmtNum(cant)} ${escapeHtml(unit)}</td>
+                                <td>
+                                    <input type="text" class="name-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(name)}" style="width:100%;min-width:140px;background:rgba(255,255,255,0.05);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;" title="Editar descripción de insumo">
+                                </td>
+                                <td>
+                                    <div style="display:flex;align-items:center;gap:4px;">
+                                        <input type="number" step="0.01" min="0.01" class="cant-inp" data-req="${p.request_id}" data-idx="${idx}" value="${cant}" style="width:70px;background:rgba(255,255,255,0.05);color:var(--gold-soft);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:13px;font-weight:700;" title="Modificar cantidad">
+                                        <input type="text" class="unit-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(unit)}" style="width:50px;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 4px;font-size:11.5px;" title="Unidad">
+                                    </div>
+                                </td>
                                 <td><input class="prov-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(prov)}"></td>
                                 <td>${histTag}</td>
                                 <td><input type="number" step="0.1" min="0" class="price-inp" data-req="${p.request_id}" data-idx="${idx}" value="${price}" placeholder="0.00"></td>
                                 <td style="text-align:right;font-weight:700;color:var(--gold-soft)">S/ ${fmtNum(subtotal || 0)}</td>
+                                <td style="text-align:center">
+                                    <button title="Descontar / Quitar ítem del pedido" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:3px 7px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="removeItemFromOrder('${p.request_id}', ${idx})">🗑️</button>
+                                </td>
                             </tr>`;
                         }).join('');
 
@@ -1487,18 +1516,20 @@ $isAdmin = ($role === 'admin');
                                 <thead>
                                     <tr>
                                         <th style="width:36px;text-align:center">✓</th>
-                                        <th>Insumo</th>
-                                        <th>Cantidad</th>
-                                        <th>Proveedor</th>
+                                        <th style="min-width:160px;">Insumo / Descripción</th>
+                                        <th style="min-width:130px;">Cantidad</th>
+                                        <th style="min-width:120px;">Proveedor</th>
                                         <th>Último Precio</th>
-                                        <th>Precio Unit. (S/)</th>
+                                        <th style="min-width:100px;">Precio Unit. (S/)</th>
                                         <th style="text-align:right">Subtotal</th>
+                                        <th style="width:44px;text-align:center">Quitar</th>
                                     </tr>
                                 </thead>
                                 <tbody>${rows}</tbody>
                             </table>
-                            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-                                <button class="btn btn-gold btn-sm" onclick="saveOrderPrices('${p.request_id}')">💾 Guardar Precios y Proveedores</button>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
+                                <button class="btn btn-sm" style="background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);" onclick="openAddItemModal('${p.request_id}')">➕ Agregar Insumo</button>
+                                <button class="btn btn-gold btn-sm" onclick="saveOrderEdits('${p.request_id}')">💾 Guardar Cambios del Pedido</button>
                             </div>
                         </div>`;
                     }
@@ -1642,6 +1673,9 @@ $isAdmin = ($role === 'admin');
                             <td><span style="font-size:11.5px;color:var(--muted)">${auts}</span></td>
                             <td><span style="font-size:11.5px;color:var(--text);font-weight:500;">${fchs || '—'}</span></td>
                             <td><span class="hist-ref">${histTag}</span></td>
+                            <td style="text-align:center">
+                                <button class="btn btn-sm btn-void" style="padding:3px 8px;font-size:12px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);cursor:pointer;border-radius:6px;" onclick="quitarLineaProveedor('${escapeHtml(provName)}', '${escapeHtml(it.codigo)}', '${escapeHtml(it.nombre)}')" title="Quitar esta línea del pedido">🗑️ Quitar</button>
+                            </td>
                         </tr>`;
                     }).join('');
 
@@ -1678,6 +1712,7 @@ $isAdmin = ($role === 'admin');
                                         <th>Solicitado por</th>
                                         <th>Fecha de Pedido</th>
                                         <th>Último Precio Ref</th>
+                                        <th style="width:90px;text-align:center">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody>${tableRows}</tbody>
@@ -1686,6 +1721,67 @@ $isAdmin = ($role === 'admin');
                     </div>`;
                 }).join('');
             }
+
+            window.quitarLineaProveedor = async function(provName, codigo, nombre) {
+                if (!confirm(`¿Estás seguro de quitar la línea "${nombre}" del proveedor ${provName}?`)) return;
+
+                let affectedOrdersCount = 0;
+                const updatePromises = [];
+
+                pedidos.forEach(p => {
+                    if (!p.items || p.estado === 'anulado') return;
+
+                    const hasMatchingItem = p.items.some(it => {
+                        const prod = catMap[it.codigo];
+                        const itemProv = it.proveedor || (prod ? prod.proveedor : 'Otro') || 'Otro';
+                        const codeMatch = (it.codigo === codigo) || (it.nombre && it.nombre === nombre);
+                        const provMatch = (itemProv === provName) || (provName === 'Otro');
+                        return codeMatch && provMatch;
+                    });
+
+                    if (hasMatchingItem) {
+                        const newItems = p.items.filter(it => {
+                            const prod = catMap[it.codigo];
+                            const itemProv = it.proveedor || (prod ? prod.proveedor : 'Otro') || 'Otro';
+                            const codeMatch = (it.codigo === codigo) || (it.nombre && it.nombre === nombre);
+                            const provMatch = (itemProv === provName) || (provName === 'Otro');
+                            return !(codeMatch && provMatch);
+                        });
+
+                        affectedOrdersCount++;
+
+                        updatePromises.push(
+                            fetch('api.php?action=editar_pedido', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ request_id: p.request_id, items: newItems })
+                            }).then(r => r.json())
+                        );
+                    }
+                });
+
+                if (affectedOrdersCount === 0) {
+                    showAlert(false, 'Aviso', 'No se encontraron pedidos activos con esa línea para quitar.');
+                    return;
+                }
+
+                try {
+                    const results = await Promise.all(updatePromises);
+                    let errorMsg = null;
+                    results.forEach(res => {
+                        if (!res.success && res.error) errorMsg = res.error;
+                    });
+
+                    if (errorMsg) {
+                        showAlert(false, 'Error', errorMsg);
+                    } else {
+                        showAlert(true, 'Línea quitada', `Se quitó "${nombre}" de la lista de compras de ${provName}.`);
+                    }
+                    await loadPedidos();
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
 
             window.toggleItemState = async function(request_id, codigo, nuevoEstado) {
                 try {
@@ -1710,39 +1806,204 @@ $isAdmin = ($role === 'admin');
                 renderOrders();
             };
 
-            window.saveOrderPrices = async function(request_id) {
+            window.removeItemFromOrder = async function(request_id, itemIdx) {
                 const p = pedidos.find(x => x.request_id === request_id);
-                if (!p) return;
+                if (!p || !p.items) return;
+                const item = p.items[itemIdx];
+                const itemName = item ? (item.nombre || item.codigo) : 'este ítem';
 
-                const itemsUpdate = (p.items || []).map((it, idx) => {
-                    const pInp = document.querySelector(`.price-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                if (!confirm(`¿Estás seguro de quitar "${itemName}" del pedido?`)) return;
+
+                const itemsUpdate = [];
+                (p.items || []).forEach((it, idx) => {
+                    if (idx === itemIdx) return;
+
+                    const nameInp = document.querySelector(`.name-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const cantInp = document.querySelector(`.cant-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const unitInp = document.querySelector(`.unit-inp[data-req="${request_id}"][data-idx="${idx}"]`);
                     const prInp = document.querySelector(`.prov-inp[data-req="${request_id}"][data-idx="${idx}"]`);
-                    const precio = pInp ? (parseFloat(pInp.value) || 0) : (it.precio || 0);
-                    const proveedor = prInp ? prInp.value.trim() : (it.proveedor || 'Otro');
-                    return {
+                    const priceInp = document.querySelector(`.price-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+
+                    itemsUpdate.push({
                         codigo: it.codigo,
-                        precio: precio,
-                        proveedor: proveedor
-                    };
+                        nombre: nameInp ? nameInp.value.trim() : (it.nombre || ''),
+                        unidad: unitInp ? unitInp.value.trim() : (it.unidad || 'und'),
+                        cantidad: cantInp ? (parseFloat(cantInp.value) || 0) : (it.cantidad || 0),
+                        proveedor: prInp ? prInp.value.trim() : (it.proveedor || 'Otro'),
+                        precio: priceInp ? (parseFloat(priceInp.value) || 0) : (it.precio || 0),
+                        estado_item: it.estado_item || 'pendiente'
+                    });
                 });
 
+                if (itemsUpdate.length === 0) {
+                    showAlert(false, 'No se puede vaciar', 'El pedido no puede quedar sin ítems. Si deseas cancelarlo por completo, haz clic en "Anular".');
+                    return;
+                }
+
                 try {
-                    const r = await fetch('api.php?action=guardar_precios', {
+                    const r = await fetch('api.php?action=editar_pedido', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ request_id, items: itemsUpdate })
                     });
                     const data = await r.json();
                     if (r.ok && data.success) {
-                        showAlert(true, 'Precios guardados', 'Los precios y proveedores del pedido se han actualizado correctamente.');
+                        showAlert(true, 'Ítem quitado', `Se eliminó "${itemName}" del pedido.`);
                         await loadPedidos();
                     } else {
-                        throw new Error(data.error || 'No se pudieron guardar los precios.');
+                        throw new Error(data.error || 'No se pudo eliminar el ítem.');
                     }
                 } catch (err) {
                     showAlert(false, 'Error', err.message);
                 }
             };
+
+            window.saveOrderEdits = async function(request_id) {
+                const p = pedidos.find(x => x.request_id === request_id);
+                if (!p) return;
+
+                const itemsUpdate = [];
+                (p.items || []).forEach((it, idx) => {
+                    const nameInp = document.querySelector(`.name-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const cantInp = document.querySelector(`.cant-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const unitInp = document.querySelector(`.unit-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const prInp = document.querySelector(`.prov-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+                    const priceInp = document.querySelector(`.price-inp[data-req="${request_id}"][data-idx="${idx}"]`);
+
+                    const nombre = nameInp ? nameInp.value.trim() : (it.nombre || '');
+                    const cantidad = cantInp ? (parseFloat(cantInp.value) || 0) : (it.cantidad || 0);
+                    const unidad = unitInp ? unitInp.value.trim() : (it.unidad || 'und');
+                    const proveedor = prInp ? prInp.value.trim() : (it.proveedor || 'Otro');
+                    const precio = priceInp ? (parseFloat(priceInp.value) || 0) : (it.precio || 0);
+
+                    if (cantidad > 0 && nombre !== '') {
+                        itemsUpdate.push({
+                            codigo: it.codigo,
+                            nombre: nombre,
+                            unidad: unidad,
+                            cantidad: cantidad,
+                            precio: precio,
+                            proveedor: proveedor,
+                            estado_item: it.estado_item || 'pendiente'
+                        });
+                    }
+                });
+
+                if (itemsUpdate.length === 0) {
+                    showAlert(false, 'Error', 'El pedido no puede quedar sin ítems.');
+                    return;
+                }
+
+                try {
+                    const r = await fetch('api.php?action=editar_pedido', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ request_id, items: itemsUpdate })
+                    });
+                    const data = await r.json();
+                    if (r.ok && data.success) {
+                        showAlert(true, 'Pedido actualizado', 'Se han guardado las descripciones, cantidades, proveedores y precios.');
+                        await loadPedidos();
+                    } else {
+                        throw new Error(data.error || 'No se pudieron guardar los cambios.');
+                    }
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
+            window.saveOrderPrices = window.saveOrderEdits;
+
+            let currentTargetReqId = null;
+            window.openAddItemModal = function(request_id) {
+                currentTargetReqId = request_id;
+                document.getElementById('addInsumoNombre').value = '';
+                document.getElementById('addInsumoCantidad').value = '';
+                document.getElementById('addInsumoUnidad').value = 'und';
+                document.getElementById('addInsumoProveedor').value = '';
+                document.getElementById('addInsumoPrecio').value = '';
+                document.getElementById('modalAddInsumoOrder').classList.add('active');
+            };
+
+            const btnAddInsumoCancel = document.getElementById('btnAddInsumoCancel');
+            if (btnAddInsumoCancel) {
+                btnAddInsumoCancel.addEventListener('click', () => {
+                    document.getElementById('modalAddInsumoOrder').classList.remove('active');
+                });
+            }
+
+            const btnAddInsumoOk = document.getElementById('btnAddInsumoOk');
+            if (btnAddInsumoOk) {
+                btnAddInsumoOk.addEventListener('click', async () => {
+                    if (!currentTargetReqId) return;
+                    const p = pedidos.find(x => x.request_id === currentTargetReqId);
+                    if (!p) return;
+
+                    const nombre = document.getElementById('addInsumoNombre').value.trim();
+                    const cantidad = parseFloat(document.getElementById('addInsumoCantidad').value) || 0;
+                    const unidad = document.getElementById('addInsumoUnidad').value.trim() || 'und';
+                    const proveedor = document.getElementById('addInsumoProveedor').value.trim() || 'Otro';
+                    const precio = parseFloat(document.getElementById('addInsumoPrecio').value) || 0;
+
+                    if (!nombre) {
+                        alert('Por favor ingresa el nombre del insumo.');
+                        return;
+                    }
+                    if (cantidad <= 0) {
+                        alert('Por favor ingresa una cantidad mayor a 0.');
+                        return;
+                    }
+
+                    const newCode = 'ADD-' + Date.now();
+                    const currentItems = [];
+
+                    (p.items || []).forEach((it, idx) => {
+                        const nameInp = document.querySelector(`.name-inp[data-req="${currentTargetReqId}"][data-idx="${idx}"]`);
+                        const cantInp = document.querySelector(`.cant-inp[data-req="${currentTargetReqId}"][data-idx="${idx}"]`);
+                        const unitInp = document.querySelector(`.unit-inp[data-req="${currentTargetReqId}"][data-idx="${idx}"]`);
+                        const prInp = document.querySelector(`.prov-inp[data-req="${currentTargetReqId}"][data-idx="${idx}"]`);
+                        const priceInp = document.querySelector(`.price-inp[data-req="${currentTargetReqId}"][data-idx="${idx}"]`);
+
+                        currentItems.push({
+                            codigo: it.codigo,
+                            nombre: nameInp ? nameInp.value.trim() : (it.nombre || ''),
+                            unidad: unitInp ? unitInp.value.trim() : (it.unidad || 'und'),
+                            cantidad: cantInp ? (parseFloat(cantInp.value) || 0) : (it.cantidad || 0),
+                            proveedor: prInp ? prInp.value.trim() : (it.proveedor || 'Otro'),
+                            precio: priceInp ? (parseFloat(priceInp.value) || 0) : (it.precio || 0),
+                            estado_item: it.estado_item || 'pendiente'
+                        });
+                    });
+
+                    currentItems.push({
+                        codigo: newCode,
+                        nombre: nombre,
+                        unidad: unidad,
+                        cantidad: cantidad,
+                        proveedor: proveedor,
+                        precio: precio,
+                        estado_item: 'pendiente'
+                    });
+
+                    document.getElementById('modalAddInsumoOrder').classList.remove('active');
+
+                    try {
+                        const r = await fetch('api.php?action=editar_pedido', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ request_id: currentTargetReqId, items: currentItems })
+                        });
+                        const data = await r.json();
+                        if (r.ok && data.success) {
+                            showAlert(true, 'Insumo agregado', `Se añadió "${nombre}" al pedido.`);
+                            await loadPedidos();
+                        } else {
+                            throw new Error(data.error || 'No se pudo agregar el insumo.');
+                        }
+                    } catch (err) {
+                        showAlert(false, 'Error', err.message);
+                    }
+                });
+            }
 
             window.copyWhatsAppText = function(btn, encodedText) {
                 const text = decodeURIComponent(encodedText);
