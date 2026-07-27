@@ -745,6 +745,7 @@ $isAdmin = ($role === 'admin');
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                     <button class="btn-toggle-view active" id="btnModePedidos">📋 Vista por Pedidos</button>
                     <button class="btn-toggle-view" id="btnModeProveedores">🛒 Hoja de Compras por Proveedor</button>
+                    <button class="btn-toggle-view" id="btnModeCalendario">📅 Calendario de Entregas</button>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                     <div class="chips" id="estadoChips">
@@ -782,6 +783,7 @@ $isAdmin = ($role === 'admin');
                     <div class="sk"></div><div class="sk"></div><div class="sk"></div>
                 </div>
                 <div class="orders-list" id="purchasingList" style="display:none;"></div>
+                <div class="orders-list" id="calendarView" style="display:none;"></div>
             </div>
 
 <?php else: ?>
@@ -835,6 +837,10 @@ $isAdmin = ($role === 'admin');
                         <div class="note-box" style="margin-bottom:14px;">
                             <div class="note-head"><span>Notas especiales</span><span id="charCount">0 / 300</span></div>
                             <textarea id="noteTextarea" class="note-area" placeholder="Instrucciones adicionales para el pedido..." maxlength="300"></textarea>
+                        </div>
+                        <div style="margin-bottom:14px;">
+                            <label style="font-size:12.5px;color:var(--gold-soft);font-weight:700;display:block;margin-bottom:4px;">📅 Fecha de entrega estimada / requerida:</label>
+                            <input type="date" id="orderDeliveryDate" class="search-input" style="width:100%;height:40px;background:var(--surface);color:var(--text);" value="<?= date('Y-m-d') ?>">
                         </div>
                         <label class="urgent-box" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;background:rgba(240,101,90,0.12);border:1px solid rgba(240,101,90,0.35);padding:10px 14px;border-radius:11px;color:var(--danger);font-weight:700;font-size:13.5px;user-select:none;">
                             <input type="checkbox" id="chkUrgente" style="width:18px;height:18px;accent-color:var(--danger);cursor:pointer;">
@@ -892,6 +898,17 @@ $isAdmin = ($role === 'admin');
             <div class="sheet-overlay" id="sheetOverlay"></div>
 <?php endif; ?>
         </main>
+    </div>
+
+    <!-- Modal Entregas del Día -->
+    <div class="modal" id="modalDayDeliveries">
+        <div class="modal-card" style="max-width:600px;">
+            <div class="modal-ico">🚚</div>
+            <h3 class="modal-title" id="dayDeliveriesTitle">Entregas Programadas</h3>
+            <p class="modal-desc" id="dayDeliveriesSub"></p>
+            <div id="dayDeliveriesBody" style="max-height:400px;overflow-y:auto;margin-bottom:18px;"></div>
+            <button class="btn modal-btn" onclick="document.getElementById('modalDayDeliveries').style.display='none'">Cerrar</button>
+        </div>
     </div>
 
     <!-- Modal agregar insumo a pedido existente -->
@@ -1219,6 +1236,7 @@ $isAdmin = ($role === 'admin');
 
             btnSendOrder.addEventListener('click', async () => {
                 const isUrgente = !!document.getElementById('chkUrgente')?.checked;
+                const delivDate = document.getElementById('orderDeliveryDate')?.value || '';
                 const items = Object.entries(cart).map(([codigo, cantidad]) => {
                     const prod = catMap[codigo];
                     return {
@@ -1238,7 +1256,7 @@ $isAdmin = ($role === 'admin');
                     const r = await fetch('api.php?action=enviar', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ request_id: requestId, nota: noteTextarea.value, urgente: isUrgente, items })
+                        body: JSON.stringify({ request_id: requestId, nota: noteTextarea.value, urgente: isUrgente, fecha_entrega: delivDate, items })
                     });
                     const data = await r.json();
                     if (r.ok && data.success) {
@@ -1250,6 +1268,7 @@ $isAdmin = ($role === 'admin');
                         }
                         waLines.push(`*NUEVO PEDIDO DE INSUMOS - MUHU* 📦`);
                         if (data.folio) waLines.push(`*Folio:* ${data.folio}`);
+                        if (delivDate) waLines.push(`*Fecha de Entrega Deseada:* ${delivDate}`);
                         waLines.push(`*Solicitado por:* ${document.querySelector('.user-meta .name')?.textContent || 'Personal'}`);
                         waLines.push(`*Detalle:* ${items.length} insumos`);
                         waLines.push(``);
@@ -1430,13 +1449,18 @@ $isAdmin = ($role === 'admin');
             const isToday = iso => { const d = new Date(iso); const n = new Date(); return d.toDateString() === n.toDateString(); };
             const fmtDate = iso => { try { return new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return iso; } };
 
-            if (btnModePedidos && btnModeProveedores) {
+            const btnModeCalendario = document.getElementById('btnModeCalendario');
+            const calendarEl = document.getElementById('calendarView');
+
+            if (btnModePedidos && btnModeProveedores && btnModeCalendario) {
                 btnModePedidos.addEventListener('click', () => {
                     mode = 'pedidos';
                     btnModePedidos.classList.add('active');
                     btnModeProveedores.classList.remove('active');
+                    btnModeCalendario.classList.remove('active');
                     ordersEl.style.display = '';
                     if (purchasingEl) purchasingEl.style.display = 'none';
+                    if (calendarEl) calendarEl.style.display = 'none';
                     if (statsEl) statsEl.style.display = '';
                     renderMain();
                 });
@@ -1444,8 +1468,21 @@ $isAdmin = ($role === 'admin');
                     mode = 'proveedores';
                     btnModeProveedores.classList.add('active');
                     btnModePedidos.classList.remove('active');
+                    btnModeCalendario.classList.remove('active');
                     ordersEl.style.display = 'none';
                     if (purchasingEl) purchasingEl.style.display = '';
+                    if (calendarEl) calendarEl.style.display = 'none';
+                    if (statsEl) statsEl.style.display = 'none';
+                    renderMain();
+                });
+                btnModeCalendario.addEventListener('click', () => {
+                    mode = 'calendario';
+                    btnModeCalendario.classList.add('active');
+                    btnModePedidos.classList.remove('active');
+                    btnModeProveedores.classList.remove('active');
+                    ordersEl.style.display = 'none';
+                    if (purchasingEl) purchasingEl.style.display = 'none';
+                    if (calendarEl) calendarEl.style.display = '';
                     if (statsEl) statsEl.style.display = 'none';
                     renderMain();
                 });
@@ -1576,10 +1613,31 @@ $isAdmin = ($role === 'admin');
             function renderMain() {
                 if (mode === 'pedidos') {
                     renderOrders();
-                } else {
+                } else if (mode === 'proveedores') {
                     renderPurchasingBySupplier();
+                } else if (mode === 'calendario') {
+                    renderCalendarView();
                 }
             }
+
+            window.updateOrderDeliveryDate = async function(request_id, fecha_entrega) {
+                try {
+                    const r = await fetch('api.php?action=actualizar_fecha_entrega', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ request_id, fecha_entrega })
+                    });
+                    const data = await r.json();
+                    if (r.ok && data.success) {
+                        showAlert(true, 'Fecha de Entrega Actualizada', `El pedido se ha programado para entregarse el ${fecha_entrega}.`);
+                        await loadPedidos();
+                    } else {
+                        throw new Error(data.error || 'No se pudo actualizar la fecha.');
+                    }
+                } catch (err) {
+                    showAlert(false, 'Error', err.message);
+                }
+            };
 
             function renderOrders() {
                 const list = pedidos.filter(matchFilter);
@@ -1721,7 +1779,13 @@ $isAdmin = ($role === 'admin');
                             <div class="oc-head">
                                 <div class="oc-id">
                                     <div class="oc-author"><span class="who">${initial}</span>${escapeHtml(p.autor || 'Personal')}</div>
-                                    <div class="oc-sub">${p.folio ? 'Folio ' + escapeHtml(String(p.folio)) + ' · ' : ''}${fmtDate(p.creado_en)}</div>
+                                    <div class="oc-sub">
+                                        ${p.folio ? 'Folio ' + escapeHtml(String(p.folio)) + ' · ' : ''}${fmtDate(p.creado_en)}
+                                        <div style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;background:rgba(201,160,82,0.15);border:1px solid rgba(201,160,82,0.3);padding:2px 8px;border-radius:6px;" title="Modificar fecha de entrega del pedido">
+                                            <span style="font-size:11px;color:var(--gold-soft);font-weight:700;">🚚 Entrega:</span>
+                                            <input type="date" value="${p.fecha_entrega || (p.creado_en ? p.creado_en.split('T')[0] : '')}" onchange="updateOrderDeliveryDate('${p.request_id}', this.value)" style="background:#ffffff;color:#111111;border:none;outline:none;font-size:11px;font-weight:700;cursor:pointer;border-radius:4px;padding:0 4px;">
+                                        </div>
+                                    </div>
                                 </div>
                                 <div style="display:flex;align-items:center;gap:6px;">
                                     ${isUrgent ? '<span class="badge-urgent">🚨 URGENTE</span>' : ''}

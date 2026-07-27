@@ -221,11 +221,14 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $autor = $_SESSION['user']['name'] ?? 'App Pedidos';
+    $fechaEntrega = !empty($in['fecha_entrega']) ? trim(strip_tags($in['fecha_entrega'])) : date('Y-m-d');
+
     $payload = [
-        'autor'      => $autor,
-        'nota'       => $notaCentral,
-        'request_id' => $requestId,
-        'items'      => $items,
+        'autor'         => $autor,
+        'nota'          => $notaCentral,
+        'request_id'    => $requestId,
+        'items'         => $items,
+        'fecha_entrega' => $fechaEntrega,
     ];
 
     [$code, $data] = muhu_call('POST', '/ingest-pedido.php', $payload);
@@ -245,6 +248,7 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'total_lineas'   => count($items),
         'total_unidades' => round($totalUnidades, 2),
         'estado'         => 'enviado',
+        'fecha_entrega'  => $fechaEntrega,
         'creado_en'      => date('c'),
         'actualizado_en' => date('c'),
     ]);
@@ -526,6 +530,47 @@ if ($action === 'toggle_item_estado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     echo json_encode(['success' => true]);
+    exit;
+}
+
+// ── Actualizar fecha de entrega de un pedido ──────────────────
+if ($action === 'actualizar_fecha_entrega' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    guard_csrf();
+
+    $in = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = trim(strip_tags($in['request_id'] ?? ''));
+    $fechaEntrega = trim(strip_tags($in['fecha_entrega'] ?? ''));
+
+    if ($id === '' || $fechaEntrega === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'ID y fecha de entrega son requeridos.']);
+        exit;
+    }
+
+    $all = pedidos_load();
+    $found = false;
+    foreach ($all as $i => $p) {
+        if (($p['request_id'] ?? null) === $id) {
+            $all[$i]['fecha_entrega'] = $fechaEntrega;
+            $all[$i]['actualizado_en'] = date('c');
+            $found = true;
+            break;
+        }
+    }
+
+    if (!$found) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Pedido no encontrado.']);
+        exit;
+    }
+
+    if (!pedidos_save($all)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'No se pudo guardar la fecha de entrega.']);
+        exit;
+    }
+
+    echo json_encode(['success' => true, 'fecha_entrega' => $fechaEntrega]);
     exit;
 }
 
