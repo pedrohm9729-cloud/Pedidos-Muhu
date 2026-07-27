@@ -2111,10 +2111,12 @@ $isAdmin = ($role === 'admin');
 
             window.filterAddInsumoDropdown = function(query) {
                 const selectEl = document.getElementById('addInsumoCatalogSelect');
+                const nameInp = document.getElementById('addInsumoNombre');
                 if (!selectEl) return;
 
                 const q = (query || '').toLowerCase().trim();
                 let options = `<option value="">-- Escribir insumo libre o elegir del catálogo --</option>`;
+                let firstMatchingCode = null;
                 
                 const list = (catalog || []).slice().sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
                 list.forEach(p => {
@@ -2123,6 +2125,7 @@ $isAdmin = ($role === 'admin');
                     const code = p.codigo || '';
                     
                     if (!q || name.toLowerCase().includes(q) || prov.toLowerCase().includes(q) || code.toLowerCase().includes(q)) {
+                        if (!firstMatchingCode && q) firstMatchingCode = code;
                         const hist = (typeof priceHistMap !== 'undefined' && priceHistMap) ? priceHistMap[p.codigo] : null;
                         const priceStr = hist ? ` (Ref: S/ ${fmtNum(hist.precio)})` : '';
                         options += `<option value="${escapeHtml(code)}">${escapeHtml(name)}${priceStr} - ${escapeHtml(prov)}</option>`;
@@ -2130,6 +2133,16 @@ $isAdmin = ($role === 'admin');
                 });
 
                 selectEl.innerHTML = options;
+
+                if (q) {
+                    if (firstMatchingCode) {
+                        selectEl.value = firstMatchingCode;
+                        onSelectCatalogItemForAdd(selectEl);
+                    } else {
+                        selectEl.value = '';
+                        if (nameInp) nameInp.value = query;
+                    }
+                }
             };
 
             window.openAddItemModal = async function(request_id) {
