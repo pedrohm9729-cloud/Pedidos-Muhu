@@ -1937,7 +1937,20 @@ $isAdmin = ($role === 'admin');
                         </tr>`;
                     }).join('');
 
-                    const waLines = [`*PEDIDO DE INSUMOS - MUHU*`, `_Proveedor: ${provName}_`, ``];
+                    let suppDates = [];
+                    items.forEach(it => {
+                        pedidos.forEach(p => {
+                            if (!p.items || p.estado === 'anulado') return;
+                            const match = p.items.find(x => x.codigo === it.codigo);
+                            if (match) {
+                                const d = match.fecha_entrega || p.fecha_entrega;
+                                if (d) suppDates.push(d);
+                            }
+                        });
+                    });
+                    const mostCommonDateForSupplier = suppDates[0] || (new Date()).toISOString().split('T')[0];
+
+                    const waLines = [`*PEDIDO DE INSUMOS - MUHU*`, `_Proveedor: ${provName}_`, `*Fecha Entrega Estimada:* ${mostCommonDateForSupplier}`, ``];
                     items.forEach(it => {
                         if (!it.isDone) {
                             const nts = Array.from(it.notas).join(' · ');
@@ -1976,11 +1989,17 @@ $isAdmin = ($role === 'admin');
                                 </thead>
                                 <tbody>${tableRows}</tbody>
                             </table>
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:12px;flex-wrap:wrap;">
                                 <div style="font-size:13.5px;color:var(--text)">
                                     ${suppTotalMonto > 0 ? `Total estimado proveedor: <strong style="color:var(--gold-soft)">S/ ${fmtNum(suppTotalMonto)}</strong>` : ''}
                                 </div>
-                                <button class="btn btn-gold btn-sm" onclick="saveSupplierEdits(\`${encodeURIComponent(provName)}\`)">💾 Guardar Precios y Cantidades</button>
+                                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                    <div style="display:flex;align-items:center;gap:6px;background:rgba(201,160,82,0.12);border:1px solid rgba(201,160,82,0.35);padding:4px 10px;border-radius:10px;" title="Asignar fecha de entrega para todos los insumos de este proveedor">
+                                        <span style="font-size:12px;color:var(--gold-soft);font-weight:700;">📅 Fecha Entrega Proveedor:</span>
+                                        <input type="date" class="supp-global-date" data-prov="${encodeURIComponent(provName)}" value="${mostCommonDateForSupplier}">
+                                    </div>
+                                    <button class="btn btn-gold btn-sm" onclick="saveSupplierEdits(\`${encodeURIComponent(provName)}\`)">💾 Guardar Precios, Cantidades y Fecha</button>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -1991,9 +2010,10 @@ $isAdmin = ($role === 'admin');
                 const provName = decodeURIComponent(encodedProvName);
                 const priceInputs = document.querySelectorAll(`.supp-price-inp[data-prov="${encodeURIComponent(provName)}"]`);
                 const cantInputs = document.querySelectorAll(`.supp-cant-inp[data-prov="${encodeURIComponent(provName)}"]`);
-                const unitInputs = document.querySelector(`.supp-unit-inp[data-prov="${encodeURIComponent(provName)}"]`);
+                const globalDateInp = document.querySelector(`.supp-global-date[data-prov="${encodeURIComponent(provName)}"]`);
+                const globalDate = globalDateInp ? globalDateInp.value : null;
 
-                if (!priceInputs.length && !cantInputs.length) return;
+                if (!priceInputs.length && !cantInputs.length && !globalDate) return;
 
                 const dataMap = {};
                 cantInputs.forEach(inp => {
@@ -2033,18 +2053,20 @@ $isAdmin = ($role === 'admin');
                         const prod = catMap[it.codigo];
                         const itemProv = it.proveedor || (prod ? prod.proveedor : 'Otro') || 'Otro';
 
-                        if ((itemProv === provName || provName === 'Otro') && dataMap[it.codigo] !== undefined) {
+                        if (itemProv === provName || provName === 'Otro') {
                             modified = true;
-                            const edits = dataMap[it.codigo];
+                            const edits = dataMap[it.codigo] || {};
                             const newPrice = (edits.precio !== undefined) ? edits.precio : (it.precio || 0);
                             const newCant = (edits.cantidad !== undefined) ? edits.cantidad : (it.cantidad || 0);
                             const newUnit = (edits.unidad !== undefined) ? edits.unidad : (it.unidad || 'und');
-                            
+                            const newDate = globalDate || it.fecha_entrega || p.fecha_entrega || '';
+
                             return {
                                 ...it,
                                 precio: newPrice,
                                 cantidad: newCant,
                                 unidad: newUnit,
+                                fecha_entrega: newDate,
                                 subtotal: Math.round(newCant * newPrice * 100) / 100
                             };
                         }
