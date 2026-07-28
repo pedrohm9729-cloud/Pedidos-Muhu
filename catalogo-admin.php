@@ -488,8 +488,27 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
                 </div>
                 <div class="field">
                     <label>Unidad *</label>
-                    <input type="text" name="unidad" value="<?= htmlspecialchars($editar['unidad'] ?? $old['unidad'] ?? '') ?>"
-                        placeholder="ej. kg, und, caja x12" maxlength="30" required>
+                    <input type="text" name="unidad" list="unit-list" value="<?= htmlspecialchars($editar['unidad'] ?? $old['unidad'] ?? '') ?>"
+                        placeholder="ej. kg, und, paquete, caja" maxlength="30" required>
+                    <datalist id="unit-list">
+                        <option value="und">Unidad (und)</option>
+                        <option value="kg">Kilo (kg)</option>
+                        <option value="gr">Gramo (gr)</option>
+                        <option value="l">Litro (l)</option>
+                        <option value="ml">Mililitro (ml)</option>
+                        <option value="paquete">Paquete</option>
+                        <option value="caja">Caja</option>
+                        <option value="bolsa">Bolsa</option>
+                        <option value="millar">Millar</option>
+                        <option value="ciento">Ciento</option>
+                        <option value="docena">Docena</option>
+                        <option value="lata">Lata</option>
+                        <option value="atado">Atado</option>
+                        <option value="botella">Botella</option>
+                        <option value="frasco">Frasco</option>
+                        <option value="balde">Balde</option>
+                        <option value="rollo">Rollo</option>
+                    </datalist>
                 </div>
                 <div class="field">
                     <label>Categoría *</label>
@@ -504,8 +523,16 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
                 </div>
                 <div class="field">
                     <label>Proveedor</label>
-                    <input type="text" name="proveedor" value="<?= htmlspecialchars($editar['proveedor'] ?? $old['proveedor'] ?? '') ?>"
-                        placeholder="ej. Mercado mayorista" maxlength="60">
+                    <input type="text" name="proveedor" list="prov-list" value="<?= htmlspecialchars($editar['proveedor'] ?? $old['proveedor'] ?? '') ?>"
+                        placeholder="ej. Mercado Mayorista o seleccionar de lista" maxlength="60">
+                    <datalist id="prov-list">
+                        <?php 
+                        $provList = array_unique(array_merge($provs ?? [], ['Makro', 'Tony Grafh', 'Alliexpress', 'Biopacking', 'Mercado Mayorista', 'Gloria', 'Alicorp', 'Avícola', 'Otro']));
+                        sort($provList);
+                        foreach ($provList as $p): ?>
+                        <option value="<?= htmlspecialchars($p) ?>">
+                        <?php endforeach; ?>
+                    </datalist>
                 </div>
             </div>
             <div class="form-actions">

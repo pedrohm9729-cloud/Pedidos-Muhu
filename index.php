@@ -892,10 +892,19 @@ $isAdmin = ($role === 'admin');
                 <div class="modal-card">
                     <div class="modal-ico" style="font-size:1.5rem;">✏️</div>
                     <h3 class="modal-title">Agregar ítem libre</h3>
-                    <p class="modal-desc" style="margin-bottom:14px;">Escribe el nombre del producto y la cantidad. Se enviará tal cual al administrador.</p>
+                    <p class="modal-desc" style="margin-bottom:14px;">Escribe el nombre del producto y selecciona la cantidad y unidad estándar.</p>
                     <input id="itemLibreNombre" type="text" class="search-input" placeholder="Nombre del producto (ej. Azúcar rubia)" style="margin-bottom:10px;width:100%;" maxlength="80">
-                    <input id="itemLibreCantidad" type="number" class="search-input" placeholder="Cantidad (ej. 5)" min="0.01" step="0.01" style="margin-bottom:10px;width:100%;">
-                    <input id="itemLibreUnidad" type="text" class="search-input" placeholder="Unidad (ej. kg, litro, bolsa)" style="margin-bottom:18px;width:100%;" maxlength="20">
+                    <div style="display:flex;gap:10px;margin-bottom:18px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Cantidad:</label>
+                            <input id="itemLibreCantidad" type="number" class="search-input" placeholder="Cantidad (ej. 5)" min="0.01" step="0.01" value="1" style="width:100%;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Unidad Estándar:</label>
+                            <select id="itemLibreUnidad" class="search-input" style="width:100%;background:var(--bg-card);color:var(--text);">
+                            </select>
+                        </div>
+                    </div>
                     <div style="display:flex;gap:10px;">
                         <button class="btn" id="btnItemLibreCancel" style="flex:1;">Cancelar</button>
                         <button class="btn btn-gold" id="btnItemLibreOk" style="flex:1;">Agregar al pedido</button>
@@ -950,15 +959,17 @@ $isAdmin = ($role === 'admin');
                     <input id="addInsumoCantidad" type="number" class="search-input" placeholder="Cantidad" min="0.01" step="0.01" value="1" style="width:100%;">
                 </div>
                 <div style="flex:1;">
-                    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Unidad:</label>
-                    <input id="addInsumoUnidad" type="text" class="search-input" placeholder="Ej. kg, und" style="width:100%;" maxlength="20">
+                    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Unidad Estándar:</label>
+                    <select id="addInsumoUnidad" class="search-input" style="width:100%;background:var(--bg-card);color:var(--text);">
+                    </select>
                 </div>
             </div>
             
             <div style="display:flex;gap:10px;margin-bottom:18px;">
                 <div style="flex:1;">
                     <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Proveedor:</label>
-                    <input id="addInsumoProveedor" type="text" class="search-input" placeholder="Ej. Biopacking" style="width:100%;">
+                    <select id="addInsumoProveedor" class="search-input" style="width:100%;background:var(--bg-card);color:var(--text);">
+                    </select>
                 </div>
                 <div style="flex:1;">
                     <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Precio Unit. (S/):</label>
@@ -1029,6 +1040,73 @@ $isAdmin = ($role === 'admin');
                 ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
         const fmtNum = n => (Math.round(Number(n) * 100) / 100).toLocaleString('es-PE');
+
+        const STANDARD_UNITS = [
+            { id: 'und', label: 'Unidad (und)' },
+            { id: 'kg', label: 'Kilo (kg)' },
+            { id: 'gr', label: 'Gramo (gr)' },
+            { id: 'l', label: 'Litro (l)' },
+            { id: 'ml', label: 'Mililitro (ml)' },
+            { id: 'paquete', label: 'Paquete' },
+            { id: 'caja', label: 'Caja' },
+            { id: 'bolsa', label: 'Bolsa' },
+            { id: 'millar', label: 'Millar' },
+            { id: 'ciento', label: 'Ciento' },
+            { id: 'docena', label: 'Docena' },
+            { id: 'lata', label: 'Lata' },
+            { id: 'atado', label: 'Atado' },
+            { id: 'botella', label: 'Botella' },
+            { id: 'frasco', label: 'Frasco' },
+            { id: 'balde', label: 'Balde' },
+            { id: 'rollo', label: 'Rollo' },
+        ];
+
+        function renderUnitSelectOptions(currentUnit) {
+            const norm = (currentUnit || 'und').toLowerCase().trim();
+            let hasMatch = false;
+            let html = STANDARD_UNITS.map(u => {
+                const isSel = (u.id === norm || u.label.toLowerCase() === norm);
+                if (isSel) hasMatch = true;
+                return `<option value="${u.id}" ${isSel ? 'selected' : ''} style="background:#181510;color:#f3e5ab;">${u.label}</option>`;
+            }).join('');
+
+            if (!hasMatch && currentUnit) {
+                html += `<option value="${escapeHtml(currentUnit)}" selected style="background:#181510;color:#f3e5ab;">${escapeHtml(currentUnit)}</option>`;
+            }
+            return html;
+        }
+
+        function getStandardSuppliersList() {
+            const suppliers = new Set();
+            Object.values(catMap || {}).forEach(c => {
+                if (c.proveedor && c.proveedor.trim()) {
+                    suppliers.add(c.proveedor.trim());
+                }
+            });
+            ['Makro', 'Tony Grafh', 'Alliexpress', 'Biopacking', 'Mercado Mayorista', 'Gloria', 'Alicorp', 'Avícola'].forEach(s => suppliers.add(s));
+            
+            return Array.from(suppliers).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+        }
+
+        function renderSupplierSelectOptions(currentProv) {
+            const provs = getStandardSuppliersList();
+            const norm = (currentProv || 'Otro').trim();
+            let hasMatch = false;
+
+            let html = provs.map(p => {
+                const isSel = (p.toLowerCase() === norm.toLowerCase());
+                if (isSel) hasMatch = true;
+                return `<option value="${escapeHtml(p)}" ${isSel ? 'selected' : ''} style="background:#181510;color:#f3e5ab;">${escapeHtml(p)}</option>`;
+            }).join('');
+
+            const isOtroSel = (norm.toLowerCase() === 'otro' || !hasMatch);
+            html += `<option value="Otro" ${isOtroSel ? 'selected' : ''} style="background:#181510;color:#f3e5ab;">Otro</option>`;
+
+            if (!hasMatch && norm && norm.toLowerCase() !== 'otro') {
+                html += `<option value="${escapeHtml(norm)}" selected style="background:#181510;color:#f3e5ab;">${escapeHtml(norm)}</option>`;
+            }
+            return html;
+        }
 
         // ════════════════════════════════════════════
         //  Catálogo compartido
@@ -1335,8 +1413,9 @@ $isAdmin = ($role === 'admin');
             const modalItemLibre = document.getElementById('modalItemLibre');
             document.getElementById('btnItemLibre').addEventListener('click', () => {
                 document.getElementById('itemLibreNombre').value = '';
-                document.getElementById('itemLibreCantidad').value = '';
-                document.getElementById('itemLibreUnidad').value = '';
+                document.getElementById('itemLibreCantidad').value = '1';
+                const unitSel = document.getElementById('itemLibreUnidad');
+                if (unitSel) unitSel.innerHTML = renderUnitSelectOptions('und');
                 modalItemLibre.classList.add('active');
                 setTimeout(() => document.getElementById('itemLibreNombre').focus(), 80);
             });
@@ -1722,10 +1801,16 @@ $isAdmin = ($role === 'admin');
                                 <td>
                                     <div style="display:flex;align-items:center;gap:4px;">
                                         <input type="number" step="0.01" min="0.01" class="cant-inp" data-req="${p.request_id}" data-idx="${idx}" value="${cant}" style="width:70px;background:rgba(255,255,255,0.05);color:var(--gold-soft);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:13px;font-weight:700;" title="Modificar cantidad">
-                                        <input type="text" class="unit-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(unit)}" style="width:50px;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 4px;font-size:11.5px;" title="Unidad">
+                                        <select class="unit-inp" data-req="${p.request_id}" data-idx="${idx}" style="min-width:85px;background:#181510;color:var(--gold-soft);border:1px solid rgba(201,160,82,0.4);border-radius:6px;padding:4px 4px;font-size:11.5px;font-weight:600;" title="Unidad estándar">
+                                            ${renderUnitSelectOptions(unit)}
+                                        </select>
                                     </div>
                                 </td>
-                                <td><input class="prov-inp" data-req="${p.request_id}" data-idx="${idx}" value="${escapeHtml(prov)}"></td>
+                                <td>
+                                    <select class="prov-inp" data-req="${p.request_id}" data-idx="${idx}" style="min-width:130px;background:#181510;color:var(--gold-soft);border:1px solid rgba(201,160,82,0.4);border-radius:6px;padding:4px 6px;font-size:12px;font-weight:600;" title="Proveedor estándar u 'Otro'">
+                                        ${renderSupplierSelectOptions(prov)}
+                                    </select>
+                                </td>
                                 <td><input type="date" class="item-date-inp" data-req="${p.request_id}" data-idx="${idx}" value="${itemDate}" title="Fecha de entrega de este insumo"></td>
                                 <td>${histTag}</td>
                                 <td><input type="number" step="0.1" min="0" class="price-inp" data-req="${p.request_id}" data-idx="${idx}" value="${price}" placeholder="0.00"></td>
@@ -1917,7 +2002,9 @@ $isAdmin = ($role === 'admin');
                             <td>
                                 <div style="display:flex;align-items:center;gap:4px;">
                                     <input type="number" step="0.01" min="0.01" class="cant-inp supp-cant-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${cantTot}" style="width:75px;background:rgba(255,255,255,0.05);color:var(--gold-soft);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:13px;font-weight:700;" title="Modificar cantidad total">
-                                    <input type="text" class="unit-inp supp-unit-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${escapeHtml(it.unidad)}" style="width:55px;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 4px;font-size:11.5px;" title="Unidad">
+                                    <select class="unit-inp supp-unit-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" style="min-width:85px;background:#181510;color:var(--gold-soft);border:1px solid rgba(201,160,82,0.4);border-radius:6px;padding:4px 4px;font-size:11.5px;font-weight:600;" title="Unidad estándar">
+                                        ${renderUnitSelectOptions(it.unidad)}
+                                    </select>
                                 </div>
                             </td>
                             <td>
@@ -2314,8 +2401,8 @@ $isAdmin = ($role === 'admin');
 
                 if (!code) {
                     nameInp.value = '';
-                    unitInp.value = 'und';
-                    provInp.value = 'Otro';
+                    if (unitInp) unitInp.innerHTML = renderUnitSelectOptions('und');
+                    if (provInp) provInp.innerHTML = renderSupplierSelectOptions('Otro');
                     priceInp.value = '';
                     return;
                 }
@@ -2323,8 +2410,8 @@ $isAdmin = ($role === 'admin');
                 const prod = catMap[code];
                 if (prod) {
                     nameInp.value = prod.nombre || '';
-                    unitInp.value = prod.unidad || 'und';
-                    provInp.value = prod.proveedor || 'Otro';
+                    if (unitInp) unitInp.innerHTML = renderUnitSelectOptions(prod.unidad || 'und');
+                    if (provInp) provInp.innerHTML = renderSupplierSelectOptions(prod.proveedor || 'Otro');
                     const hist = priceHistMap[code];
                     if (hist && hist.precio) {
                         priceInp.value = hist.precio;
@@ -2389,8 +2476,8 @@ $isAdmin = ($role === 'admin');
 
                 nameInp.value = '';
                 cantInp.value = '1';
-                unitInp.value = 'und';
-                provInp.value = 'Otro';
+                if (unitInp) unitInp.innerHTML = renderUnitSelectOptions('und');
+                if (provInp) provInp.innerHTML = renderSupplierSelectOptions('Otro');
                 priceInp.value = '';
 
                 if (modal) modal.style.display = 'flex';
