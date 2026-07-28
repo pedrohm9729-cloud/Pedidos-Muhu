@@ -29,8 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     
-    if (isset($PEDIDOS_USERS[$username])) {
-        $user_info = $PEDIDOS_USERS[$username];
+    $clean_user = strtolower(trim($username));
+    $matched_key = null;
+    $user_info = null;
+
+    foreach ($PEDIDOS_USERS as $k => $info) {
+        if (strtolower(trim($k)) === $clean_user) {
+            $matched_key = $k;
+            $user_info = $info;
+            break;
+        }
+    }
+    
+    if ($user_info && !empty($user_info['hash'])) {
         if (password_verify($password, $user_info['hash'])) {
             // Regenerate session ID to prevent fixation
             session_regenerate_id(true);
@@ -38,10 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Resolver rol: explícito en config, o inferido por username.
             $role = !empty($user_info['role'])
                 ? $user_info['role']
-                : ($username === 'admin' ? 'admin' : 'staff');
+                : ($matched_key === 'admin' ? 'admin' : 'staff');
 
             $_SESSION['user'] = [
-                'username' => $username,
+                'username' => $matched_key,
                 'name'     => $user_info['name'],
                 'role'     => $role
             ];
