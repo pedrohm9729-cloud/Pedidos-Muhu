@@ -1405,6 +1405,7 @@ $isAdmin = ($role === 'admin');
                     return `<div class="order-card ${isUrgent ? 'is-urgent' : ''}">
                         <div class="oc-head">
                             <div class="oc-id">
+                                <div style="font-size:12.5px;font-weight:700;color:var(--gold-soft);margin-bottom:3px;">👤 Pedido por: ${escapeHtml(p.autor || p.usuario || 'Personal')}</div>
                                 <div class="oc-sub">${p.folio ? 'Folio ' + escapeHtml(String(p.folio)) + ' · ' : ''}${fmtDate(p.creado_en)}</div>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;">

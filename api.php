@@ -579,10 +579,19 @@ if ($action === 'actualizar_fecha_entrega' && $_SERVER['REQUEST_METHOD'] === 'PO
     exit;
 }
 
-// ── Mis pedidos (personal: solo los propios) ──────────────────────
+// ── Mis pedidos (personal / equipo compartido) ──────────────────────
 if ($action === 'mis-pedidos') {
     $all = pedidos_load();
-    $mios = array_values(array_filter($all, fn($p) => ($p['usuario'] ?? '') === $username));
+    $userInfo = $PEDIDOS_USERS[$username] ?? [];
+    $sharedUsers = $userInfo['shared_with'] ?? [$username];
+
+    $mios = array_values(array_filter($all, function($p) use ($sharedUsers) {
+        $u = strtolower(trim($p['usuario'] ?? ''));
+        foreach ($sharedUsers as $su) {
+            if ($u === strtolower($su)) return true;
+        }
+        return false;
+    }));
     echo json_encode(['pedidos' => $mios]);
     exit;
 }
