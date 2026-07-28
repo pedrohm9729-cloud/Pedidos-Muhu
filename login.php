@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Iniciar Sesión - Pedidos Muhu</title>
+    <link rel="icon" type="image/svg+xml" href="logo-gold.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -251,9 +252,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="bg-blob blob-2"></div>
 
     <div class="login-card">
-        <div class="logo-container">
-            <h1 class="logo">MUHU</h1>
-            <p class="subtitle">Pedidos de Insumos</p>
+        <div class="logo-container" style="text-align:center;margin-bottom:28px;">
+            <img src="logo-gold.svg" alt="MUHU Cafetería" style="width:210px;height:auto;margin:0 auto 10px auto;display:block;" title="MUHU Cafetería">
+            <p class="subtitle" style="font-size:12px;color:var(--text-muted);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Sistema de Pedidos de Insumos</p>
         </div>
 
         <div id="errorBox" class="error-message"></div>

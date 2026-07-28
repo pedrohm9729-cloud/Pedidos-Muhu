@@ -319,6 +319,7 @@ $sheets_url_saved = $cfg_saved['sheets_url'] ?? '';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Catálogo de Insumos — MUHU</title>
+<link rel="icon" type="image/svg+xml" href="logo-gold.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -430,9 +431,8 @@ td{padding:11px 16px;font-size:.86rem;vertical-align:middle;}
 <body>
 <!-- ─── Sidebar ─── -->
 <aside class="sidebar">
-    <div class="brand">
-        <div class="brand-mark">M</div>
-        <div><h1>MUHU</h1><p>Pedidos de Insumos</p></div>
+    <div class="brand" style="padding:16px 12px 20px 12px;margin-bottom:12px;border-bottom:1px solid var(--line);">
+        <img src="logo-gold.svg" alt="MUHU Cafetería" style="width:100%;max-width:180px;height:auto;display:block;" title="MUHU Cafetería">
     </div>
     <div class="user-chip">
         <div class="user-avatar"><?= htmlspecialchars($userInitial) ?></div>

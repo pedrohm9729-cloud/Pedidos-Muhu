@@ -32,6 +32,7 @@ $isAdmin = ($role === 'admin');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $isAdmin ? 'Gestión de Pedidos' : 'Nuevo Pedido' ?> — MUHU</title>
+    <link rel="icon" type="image/svg+xml" href="logo-gold.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -691,12 +692,8 @@ $isAdmin = ($role === 'admin');
     <div class="app">
         <!-- ── Sidebar ── -->
         <aside class="sidebar" id="sidebar">
-            <div class="brand">
-                <div class="brand-mark">M</div>
-                <div class="brand-text">
-                    <h1>MUHU</h1>
-                    <p>Pedidos de Insumos</p>
-                </div>
+            <div class="brand" style="padding:16px 12px 20px 12px;margin-bottom:12px;border-bottom:1px solid var(--line);">
+                <img src="logo-gold.svg" alt="MUHU Cafetería" style="width:100%;max-width:180px;height:auto;display:block;" title="MUHU Cafetería">
             </div>
 
             <div class="user-chip">
