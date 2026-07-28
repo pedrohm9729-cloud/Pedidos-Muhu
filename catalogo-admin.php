@@ -363,6 +363,41 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .btn-logout:hover{border-color:var(--danger);color:var(--danger);}
 .btn-logout svg{width:17px;height:17px;}
 
+select, .form-select, select.search-input {
+    background: #1c1915 !important;
+    background-color: #1c1915 !important;
+    color: #f3e5ab !important;
+    border: 1px solid rgba(201, 160, 82, 0.4) !important;
+    border-radius: 8px !important;
+    padding: 5px 26px 5px 9px !important;
+    font-family: var(--font) !important;
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    outline: none !important;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.4) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f3e5ab' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+}
+
+select:hover, select:focus {
+    border-color: #c9a052 !important;
+    box-shadow: 0 0 8px rgba(201, 160, 82, 0.4) !important;
+    background-color: #26221b !important;
+}
+
+option {
+    background: #181510 !important;
+    background-color: #181510 !important;
+    color: #f3e5ab !important;
+    padding: 8px !important;
+}
+
 /* Main */
 .main{margin-left:var(--sidebar-w);flex:1;padding:32px 36px;max-width:1200px;}
 .page-head{margin-bottom:28px;}
