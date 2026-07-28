@@ -198,21 +198,45 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Cargar catálogo central/local para auto-vincular proveedor y precio de catálogo
+    $catDict = [];
+    [$catCode, $catData] = muhu_call('GET', '/ingest-catalogo.php');
+    if ($catCode >= 200 && $catCode < 300 && !empty($catData['items'])) {
+        foreach ($catData['items'] as $cItem) {
+            $code = trim($cItem['codigo'] ?? '');
+            if (!empty($code)) $catDict[$code] = $cItem;
+        }
+    }
+
     $items = [];
     foreach ($itemsRaw as $item) {
         $codigo   = trim(strip_tags($item['codigo'] ?? ''));
         $nombre   = trim(strip_tags($item['nombre'] ?? ''));
         $unidad   = trim(strip_tags($item['unidad'] ?? 'und'));
         $cantidad = filter_var($item['cantidad'] ?? 0, FILTER_VALIDATE_FLOAT);
+        
+        $catItem  = $catDict[$codigo] ?? null;
+        $provRaw  = trim(strip_tags($item['proveedor'] ?? ''));
+        $provDefault = (!empty($provRaw) && $provRaw !== 'Otro') 
+            ? $provRaw 
+            : (!empty($catItem['proveedor']) ? $catItem['proveedor'] : 'Otro');
+
+        $precioRaw = filter_var($item['precio'] ?? ($catItem['precio'] ?? 0), FILTER_VALIDATE_FLOAT);
+        $precioDefault = ($precioRaw !== false && $precioRaw > 0) ? round($precioRaw, 2) : 0.0;
+
         if (!empty($codigo) && preg_match('/^[A-Z0-9\-]+$/i', $codigo) && $cantidad !== false && $cantidad > 0) {
-                $fechaItem = !empty($item['fecha_entrega']) ? trim(strip_tags($item['fecha_entrega'])) : $fechaEntrega;
-                $items[] = [
-                    'codigo'        => $codigo,
-                    'nombre'        => $nombre,
-                    'unidad'        => $unidad,
-                    'cantidad'      => round($cantidad, 2),
-                    'fecha_entrega' => $fechaItem
-                ];
+            $fechaItem = !empty($item['fecha_entrega']) ? trim(strip_tags($item['fecha_entrega'])) : $fechaEntrega;
+            $items[] = [
+                'codigo'        => $codigo,
+                'nombre'        => $nombre,
+                'unidad'        => $unidad,
+                'cantidad'      => round($cantidad, 2),
+                'proveedor'     => $provDefault,
+                'precio'        => $precioDefault,
+                'subtotal'      => round($cantidad * $precioDefault, 2),
+                'fecha_entrega' => $fechaItem,
+                'estado_item'   => 'pendiente'
+            ];
         }
     }
 

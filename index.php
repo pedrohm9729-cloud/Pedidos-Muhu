@@ -1371,10 +1371,13 @@ $isAdmin = ($role === 'admin');
                 const delivDate = document.getElementById('orderDeliveryDate')?.value || '';
                 const items = Object.entries(cart).map(([codigo, cantidad]) => {
                     const prod = catMap[codigo];
+                    const hist = priceHistMap[codigo];
                     return {
                         codigo,
                         nombre: prod ? prod.nombre : codigo,
                         unidad: prod ? (prod.unidad || 'und') : 'und',
+                        proveedor: prod ? (prod.proveedor || 'Otro') : 'Otro',
+                        precio: hist ? (hist.precio || 0) : 0,
                         cantidad
                     };
                 });
@@ -1814,7 +1817,7 @@ $isAdmin = ($role === 'admin');
                             const placeHolderText = prod ? prod.nombre : `Ítem Libre (${it.codigo}) - Escribe el nombre aquí`;
                             const unit = it.unidad || (prod ? prod.unidad : 'und');
                             const defaultProv = prod ? (prod.proveedor || 'Otro') : (it.proveedor || 'Otro');
-                            const prov = it.proveedor || defaultProv;
+                            const prov = (it.proveedor && it.proveedor !== 'Otro') ? it.proveedor : defaultProv;
                             const price = (it.precio !== undefined && it.precio > 0) ? it.precio : '';
                             const cant = Number(it.cantidad) || 0;
                             const subtotal = (it.subtotal !== undefined) ? it.subtotal : (cant * (Number(price) || 0));
