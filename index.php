@@ -1863,7 +1863,7 @@ $isAdmin = ($role === 'admin');
                                 </td>
                                 <td><input type="date" class="item-date-inp" data-req="${p.request_id}" data-idx="${idx}" value="${itemDate}" title="Fecha de entrega de este insumo"></td>
                                 <td>${histTag}</td>
-                                <td><input type="number" step="0.1" min="0" class="price-inp" data-req="${p.request_id}" data-idx="${idx}" value="${price}" placeholder="0.00"></td>
+                                <td><input type="number" step="0.01" min="0" class="price-inp" data-req="${p.request_id}" data-idx="${idx}" value="${price}" placeholder="0.00"></td>
                                 <td style="text-align:right;font-weight:700;color:var(--gold-soft)">S/ ${fmtNum(subtotal || 0)}</td>
                                 <td style="text-align:center">
                                     <button title="Descontar / Quitar ítem del pedido" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:3px 7px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="removeItemFromOrder('${p.request_id}', ${idx})">🗑️</button>
@@ -2063,7 +2063,7 @@ $isAdmin = ($role === 'admin');
                             </td>
                             <td>${histTag}</td>
                             <td>
-                                <input type="number" step="0.1" min="0" class="price-inp supp-price-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${priceVal}" placeholder="0.00" style="width:80px;">
+                                <input type="number" step="0.01" min="0" class="price-inp supp-price-inp" data-prov="${encodeURIComponent(provName)}" data-code="${escapeHtml(it.codigo)}" value="${priceVal}" placeholder="0.00" style="width:80px;">
                             </td>
                             <td style="text-align:right;font-weight:700;color:var(--gold-soft)">S/ ${fmtNum(subtotal || 0)}</td>
                             <td style="text-align:center">
@@ -2098,7 +2098,7 @@ $isAdmin = ($role === 'admin');
                     const waText = waLines.join('\n');
 
                     return `
-                    <div class="prov-card">
+                    <div class="prov-card" data-prov-name="${escapeHtml(provName)}">
                         <div class="prov-card-head">
                             <div class="prov-title">
                                 <span>🏬 ${escapeHtml(provName)}</span>
@@ -2143,9 +2143,11 @@ $isAdmin = ($role === 'admin');
 
             window.saveSupplierEdits = async function(encodedProvName) {
                 const provName = decodeURIComponent(encodedProvName);
-                const priceInputs = document.querySelectorAll(`.supp-price-inp[data-prov="${encodeURIComponent(provName)}"]`);
-                const cantInputs = document.querySelectorAll(`.supp-cant-inp[data-prov="${encodeURIComponent(provName)}"]`);
-                const globalDateInp = document.querySelector(`.supp-global-date[data-prov="${encodeURIComponent(provName)}"]`);
+                const card = document.querySelector(`.prov-card[data-prov-name="${escapeHtml(provName)}"]`) || document;
+                const priceInputs = card.querySelectorAll(`.supp-price-inp`);
+                const cantInputs = card.querySelectorAll(`.supp-cant-inp`);
+                const unitInputs = card.querySelectorAll(`.supp-unit-inp`);
+                const globalDateInp = card.querySelector(`.supp-global-date`);
                 const globalDate = globalDateInp ? globalDateInp.value : null;
 
                 if (!priceInputs.length && !cantInputs.length && !globalDate) return;
@@ -2153,14 +2155,14 @@ $isAdmin = ($role === 'admin');
                 const dataMap = {};
                 cantInputs.forEach(inp => {
                     const code = inp.dataset.code;
-                    const val = parseFloat(inp.value);
+                    const val = parseFloat(String(inp.value).replace(',', '.'));
                     if (code && !isNaN(val) && val > 0) {
                         dataMap[code] = dataMap[code] || {};
                         dataMap[code].cantidad = val;
                     }
                 });
 
-                document.querySelectorAll(`.supp-unit-inp[data-prov="${encodeURIComponent(provName)}"]`).forEach(inp => {
+                unitInputs.forEach(inp => {
                     const code = inp.dataset.code;
                     const val = inp.value.trim();
                     if (code && val) {
@@ -2171,10 +2173,13 @@ $isAdmin = ($role === 'admin');
 
                 priceInputs.forEach(inp => {
                     const code = inp.dataset.code;
-                    const val = parseFloat(inp.value);
-                    if (code && !isNaN(val) && val >= 0) {
-                        dataMap[code] = dataMap[code] || {};
-                        dataMap[code].precio = val;
+                    const rawStr = String(inp.value ?? '').replace(',', '.').trim();
+                    if (code && rawStr !== '') {
+                        const val = parseFloat(rawStr);
+                        if (!isNaN(val) && val >= 0) {
+                            dataMap[code] = dataMap[code] || {};
+                            dataMap[code].precio = val;
+                        }
                     }
                 });
 
@@ -2195,7 +2200,10 @@ $isAdmin = ($role === 'admin');
 
                             if (hasPrice || hasCant || hasUnit || globalDate) {
                                 modified = true;
-                                const newPrice = hasPrice ? edits.precio : (it.precio !== undefined ? it.precio : 0);
+                                const hist = priceHistMap[it.codigo];
+                                const histPrice = (hist && hist.precio > 0) ? hist.precio : 0;
+                                const currentPrice = (it.precio !== undefined && it.precio > 0) ? it.precio : histPrice;
+                                const newPrice = hasPrice ? edits.precio : currentPrice;
                                 const newCant = hasCant ? edits.cantidad : (it.cantidad || 0);
                                 const newUnit = hasUnit ? edits.unidad : (it.unidad || 'und');
                                 const newDate = globalDate || it.fecha_entrega || p.fecha_entrega || '';
