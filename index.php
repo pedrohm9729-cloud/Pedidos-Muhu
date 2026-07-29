@@ -1123,6 +1123,18 @@ $isAdmin = ($role === 'admin');
             return Array.from(suppliers).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
         }
 
+        function getItemSupplier(it) {
+            if (!it) return 'Otro';
+            if (it.proveedor && it.proveedor.trim() && it.proveedor.trim() !== 'Otro') {
+                return it.proveedor.trim();
+            }
+            const prod = catMap[it.codigo];
+            if (prod && prod.proveedor && prod.proveedor.trim() && prod.proveedor.trim() !== 'Otro') {
+                return prod.proveedor.trim();
+            }
+            return 'Otro';
+        }
+
         function renderSupplierSelectOptions(currentProv) {
             const provs = getStandardSuppliersList();
             const norm = (currentProv || 'Otro').trim();
@@ -1965,7 +1977,7 @@ $isAdmin = ($role === 'admin');
                         let name = prod ? prod.nombre : (it.nombre || '');
                         if (!name) name = it.codigo.startsWith('LIBRE-') ? `Ítem Libre (${it.codigo})` : it.codigo;
                         const unit = prod ? (prod.unidad || 'und') : (it.unidad || 'und');
-                        const prov = it.proveedor || (prod ? (prod.proveedor || 'Otro') : 'Otro');
+                        const prov = getItemSupplier(it);
                         const cant = Number(it.cantidad) || 0;
 
                         if (!provGroups[prov]) {
@@ -2173,25 +2185,31 @@ $isAdmin = ($role === 'admin');
 
                     let modified = false;
                     const updatedItems = p.items.map(it => {
-                        const prod = catMap[it.codigo];
-                        const itemProv = it.proveedor || (prod ? prod.proveedor : 'Otro') || 'Otro';
+                        const itemProv = getItemSupplier(it);
 
                         if (itemProv === provName || provName === 'Otro') {
-                            modified = true;
                             const edits = dataMap[it.codigo] || {};
-                            const newPrice = (edits.precio !== undefined) ? edits.precio : (it.precio || 0);
-                            const newCant = (edits.cantidad !== undefined) ? edits.cantidad : (it.cantidad || 0);
-                            const newUnit = (edits.unidad !== undefined) ? edits.unidad : (it.unidad || 'und');
-                            const newDate = globalDate || it.fecha_entrega || p.fecha_entrega || '';
+                            const hasPrice = (edits.precio !== undefined);
+                            const hasCant = (edits.cantidad !== undefined);
+                            const hasUnit = (edits.unidad !== undefined);
 
-                            return {
-                                ...it,
-                                precio: newPrice,
-                                cantidad: newCant,
-                                unidad: newUnit,
-                                fecha_entrega: newDate,
-                                subtotal: Math.round(newCant * newPrice * 100) / 100
-                            };
+                            if (hasPrice || hasCant || hasUnit || globalDate) {
+                                modified = true;
+                                const newPrice = hasPrice ? edits.precio : (it.precio !== undefined ? it.precio : 0);
+                                const newCant = hasCant ? edits.cantidad : (it.cantidad || 0);
+                                const newUnit = hasUnit ? edits.unidad : (it.unidad || 'und');
+                                const newDate = globalDate || it.fecha_entrega || p.fecha_entrega || '';
+
+                                return {
+                                    ...it,
+                                    proveedor: itemProv,
+                                    precio: newPrice,
+                                    cantidad: newCant,
+                                    unidad: newUnit,
+                                    fecha_entrega: newDate,
+                                    subtotal: Math.round(newCant * newPrice * 100) / 100
+                                };
+                            }
                         }
                         return it;
                     });
