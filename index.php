@@ -2188,7 +2188,7 @@ $isAdmin = ($role === 'admin');
                     }
                 });
 
-                const updatePromises = [];
+                const updatesList = [];
 
                 pedidos.forEach(p => {
                     if (!p.items || p.estado === 'anulado') return;
@@ -2208,7 +2208,7 @@ $isAdmin = ($role === 'admin');
                                 const hist = priceHistMap[it.codigo];
                                 const histPrice = (hist && hist.precio > 0) ? hist.precio : 0;
                                 const currentPrice = (it.precio !== undefined && it.precio > 0) ? it.precio : histPrice;
-                                const newPrice = hasPrice ? edits.precio : currentPrice;
+                                const newPrice = (hasPrice && edits.precio > 0) ? edits.precio : (hasPrice ? 0 : currentPrice);
                                 const newCant = hasCant ? edits.cantidad : (it.cantidad || 0);
                                 const newUnit = hasUnit ? edits.unidad : (it.unidad || 'und');
                                 const newDate = globalDate || it.fecha_entrega || p.fecha_entrega || '';
@@ -2228,30 +2228,25 @@ $isAdmin = ($role === 'admin');
                     });
 
                     if (modified) {
-                        updatePromises.push(
-                            fetch('api.php?action=editar_pedido', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ request_id: p.request_id, items: updatedItems })
-                            }).then(r => r.json())
-                        );
+                        updatesList.push({ request_id: p.request_id, items: updatedItems });
                     }
                 });
 
-                if (!updatePromises.length) {
+                if (!updatesList.length) {
                     showAlert(false, 'Aviso', 'No se ingresaron cambios para actualizar.');
                     return;
                 }
 
                 try {
-                    const results = await Promise.all(updatePromises);
-                    let errorMsg = null;
-                    results.forEach(res => {
-                        if (!res.success && res.error) errorMsg = res.error;
+                    const r = await fetch('api.php?action=editar_pedidos_bulk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ updates: updatesList })
                     });
+                    const res = await r.json();
 
-                    if (errorMsg) {
-                        showAlert(false, 'Error', errorMsg);
+                    if (!r.ok || !res.success) {
+                        showAlert(false, 'Error', res.error || 'No se pudieron guardar los datos.');
                     } else {
                         showAlert(true, 'Cambios guardados', `Se actualizaron correctamente las cantidades y precios para ${provName}.`);
                     }
@@ -2265,8 +2260,7 @@ $isAdmin = ($role === 'admin');
             window.quitarLineaProveedor = async function(provName, codigo, nombre) {
                 if (!confirm(`¿Estás seguro de quitar la línea "${nombre}" del proveedor ${provName}?`)) return;
 
-                let affectedOrdersCount = 0;
-                const updatePromises = [];
+                const updatesList = [];
 
                 pedidos.forEach(p => {
                     if (!p.items || p.estado === 'anulado') return;
@@ -2288,32 +2282,25 @@ $isAdmin = ($role === 'admin');
                             return !(codeMatch && provMatch);
                         });
 
-                        affectedOrdersCount++;
-
-                        updatePromises.push(
-                            fetch('api.php?action=editar_pedido', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ request_id: p.request_id, items: newItems })
-                            }).then(r => r.json())
-                        );
+                        updatesList.push({ request_id: p.request_id, items: newItems });
                     }
                 });
 
-                if (affectedOrdersCount === 0) {
+                if (!updatesList.length) {
                     showAlert(false, 'Aviso', 'No se encontraron pedidos activos con esa línea para quitar.');
                     return;
                 }
 
                 try {
-                    const results = await Promise.all(updatePromises);
-                    let errorMsg = null;
-                    results.forEach(res => {
-                        if (!res.success && res.error) errorMsg = res.error;
+                    const r = await fetch('api.php?action=editar_pedidos_bulk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ updates: updatesList })
                     });
+                    const res = await r.json();
 
-                    if (errorMsg) {
-                        showAlert(false, 'Error', errorMsg);
+                    if (!r.ok || !res.success) {
+                        showAlert(false, 'Error', res.error || 'No se pudo quitar la línea.');
                     } else {
                         showAlert(true, 'Línea quitada', `Se quitó "${nombre}" de la lista de compras de ${provName}.`);
                     }
@@ -2325,30 +2312,38 @@ $isAdmin = ($role === 'admin');
 
             window.toggleSupplierItemState = async function(encodedProvName, codigo, nuevoEstado) {
                 const provName = decodeURIComponent(encodedProvName);
-                const updatePromises = [];
+                const updatesList = [];
 
                 pedidos.forEach(p => {
                     if (!p.items || p.estado === 'anulado') return;
-                    const match = p.items.find(it => {
+                    let match = false;
+                    const newItems = p.items.map(it => {
                         const itemProv = getItemSupplier(it);
-                        return (it.codigo === codigo) && (itemProv === provName || provName === 'Otro');
+                        if (it.codigo === codigo && (itemProv === provName || provName === 'Otro')) {
+                            match = true;
+                            return { ...it, estado_item: nuevoEstado };
+                        }
+                        return it;
                     });
 
                     if (match) {
-                        updatePromises.push(
-                            fetch('api.php?action=toggle_item_estado', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ request_id: p.request_id, codigo: match.codigo, estado_item: nuevoEstado })
-                            }).then(r => r.json())
-                        );
+                        updatesList.push({ request_id: p.request_id, items: newItems });
                     }
                 });
 
-                if (updatePromises.length) {
+                if (updatesList.length) {
                     try {
-                        await Promise.all(updatePromises);
-                        await loadPedidos();
+                        const r = await fetch('api.php?action=editar_pedidos_bulk', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ updates: updatesList })
+                        });
+                        const res = await r.json();
+                        if (r.ok && res.success) {
+                            await loadPedidos();
+                        } else {
+                            throw new Error(res.error || 'No se pudo actualizar el estado.');
+                        }
                     } catch (e) {
                         showAlert(false, 'Error', e.message);
                     }
@@ -2359,32 +2354,42 @@ $isAdmin = ($role === 'admin');
                 const provName = decodeURIComponent(encodedProvName);
                 if (!confirm(`¿Deseas marcar TODOS los insumos pendientes de ${provName} como COMPRADOS / COMPLETADOS?`)) return;
 
-                const updatePromises = [];
+                const updatesList = [];
                 pedidos.forEach(p => {
                     if (!p.items || p.estado === 'anulado') return;
-                    p.items.forEach(it => {
+                    let match = false;
+                    const newItems = p.items.map(it => {
                         const itemProv = getItemSupplier(it);
                         if ((itemProv === provName || provName === 'Otro') && it.estado_item !== 'comprado') {
-                            updatePromises.push(
-                                fetch('api.php?action=toggle_item_estado', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ request_id: p.request_id, codigo: it.codigo, estado_item: 'comprado' })
-                                }).then(r => r.json())
-                            );
+                            match = true;
+                            return { ...it, estado_item: 'comprado' };
                         }
+                        return it;
                     });
+
+                    if (match) {
+                        updatesList.push({ request_id: p.request_id, items: newItems });
+                    }
                 });
 
-                if (!updatePromises.length) {
+                if (!updatesList.length) {
                     showAlert(false, 'Aviso', `No hay insumos pendientes para ${provName}.`);
                     return;
                 }
 
                 try {
-                    await Promise.all(updatePromises);
-                    showAlert(true, 'Compras completadas', `Se marcaron como comprados todos los insumos de ${provName}.`);
-                    await loadPedidos();
+                    const r = await fetch('api.php?action=editar_pedidos_bulk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ updates: updatesList })
+                    });
+                    const res = await r.json();
+                    if (r.ok && res.success) {
+                        showAlert(true, 'Compras completadas', `Se marcaron como comprados todos los insumos de ${provName}.`);
+                        await loadPedidos();
+                    } else {
+                        throw new Error(res.error || 'No se pudieron completar los insumos.');
+                    }
                 } catch (e) {
                     showAlert(false, 'Error', e.message);
                 }

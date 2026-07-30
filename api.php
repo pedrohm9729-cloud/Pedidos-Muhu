@@ -491,6 +491,113 @@ if (($action === 'editar_pedido' || $action === 'guardar_precios') && $_SERVER['
     exit;
 }
 
+// ── Editar múltiples pedidos masivamente (admin y staff) ────────────
+if ($action === 'editar_pedidos_bulk' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    guard_csrf();
+
+    $in = json_decode(file_get_contents('php://input'), true) ?: [];
+    $updates = $in['updates'] ?? [];
+
+    if (empty($updates)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No se enviaron datos para actualizar.']);
+        exit;
+    }
+
+    $all = pedidos_load();
+    $historial = historial_precios_load();
+    $modifiedCount = 0;
+
+    foreach ($updates as $upd) {
+        $id = trim(strip_tags($upd['request_id'] ?? ''));
+        $itemsInput = $upd['items'] ?? [];
+        if (empty($id)) continue;
+
+        foreach ($all as $i => $p) {
+            if (($p['request_id'] ?? null) === $id) {
+                $updatedItems = [];
+                $totalMonto = 0.0;
+                $totalUnidades = 0.0;
+
+                foreach ($itemsInput as $it) {
+                    $codigo = trim(strip_tags($it['codigo'] ?? ''));
+                    $nombre = trim(strip_tags($it['nombre'] ?? ''));
+                    $unidad = trim(strip_tags($it['unidad'] ?? 'und'));
+                    $cant = filter_var($it['cantidad'] ?? 0, FILTER_VALIDATE_FLOAT);
+                    $cant = ($cant !== false && $cant > 0) ? round($cant, 2) : 0.0;
+                    $precio = filter_var($it['precio'] ?? 0, FILTER_VALIDATE_FLOAT);
+                    $precio = ($precio !== false && $precio >= 0) ? round($precio, 2) : 0.0;
+                    $proveedor = trim(strip_tags($it['proveedor'] ?? 'Otro'));
+                    $estadoItem = in_array($it['estado_item'] ?? 'pendiente', ['pendiente', 'comprado', 'anulado'], true) ? $it['estado_item'] : 'pendiente';
+                    $fechaItem = !empty($it['fecha_entrega']) ? trim(strip_tags($it['fecha_entrega'])) : ($p['fecha_entrega'] ?? date('Y-m-d'));
+
+                    if (!empty($codigo) && !empty($nombre) && $cant > 0) {
+                        $subtotal = round($cant * $precio, 2);
+                        $totalMonto += $subtotal;
+                        $totalUnidades += $cant;
+
+                        $updatedItems[] = [
+                            'codigo'        => $codigo,
+                            'nombre'        => $nombre,
+                            'unidad'        => $unidad,
+                            'cantidad'      => $cant,
+                            'precio'        => $precio,
+                            'proveedor'     => $proveedor,
+                            'subtotal'      => $subtotal,
+                            'estado_item'   => $estadoItem,
+                            'fecha_entrega' => $fechaItem
+                        ];
+
+                        if ($precio > 0) {
+                            $historial[$codigo] = [
+                                'precio'    => $precio,
+                                'proveedor' => $proveedor,
+                                'fecha'     => date('c'),
+                                'folio'     => $p['folio'] ?? null
+                            ];
+                        }
+                    }
+                }
+
+                if (empty($updatedItems)) {
+                    $all[$i]['items'] = [];
+                    $all[$i]['total_lineas'] = 0;
+                    $all[$i]['total_unidades'] = 0;
+                    $all[$i]['total_monto'] = 0;
+                    $all[$i]['estado'] = 'anulado';
+                    $all[$i]['actualizado_en'] = date('c');
+                } else {
+                    $all[$i]['items'] = $updatedItems;
+                    $all[$i]['total_lineas'] = count($updatedItems);
+                    $all[$i]['total_unidades'] = round($totalUnidades, 2);
+                    $all[$i]['total_monto'] = round($totalMonto, 2);
+                    $all[$i]['actualizado_en'] = date('c');
+
+                    $comprados = array_filter($updatedItems, fn($item) => ($item['estado_item'] ?? 'pendiente') === 'comprado');
+                    if (count($comprados) === count($updatedItems)) {
+                        $all[$i]['estado'] = 'completado';
+                    } elseif (count($comprados) > 0) {
+                        $all[$i]['estado'] = 'preparacion';
+                    }
+                }
+
+                $modifiedCount++;
+                break;
+            }
+        }
+    }
+
+    if (!pedidos_save($all)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'No se pudieron guardar los cambios de los pedidos.']);
+        exit;
+    }
+
+    historial_precios_save($historial);
+    echo json_encode(['success' => true, 'updated_count' => $modifiedCount]);
+    exit;
+}
+
 // ── Historial de precios (admin y staff) ─────────────────────────
 if ($action === 'historial_precios') {
     echo json_encode(['historial' => historial_precios_load()]);
