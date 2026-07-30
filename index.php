@@ -2321,6 +2321,8 @@ $isAdmin = ($role === 'admin');
                 } catch (err) {
                     showAlert(false, 'Error', err.message);
                 }
+            };
+
             window.toggleSupplierItemState = async function(encodedProvName, codigo, nuevoEstado) {
                 const provName = decodeURIComponent(encodedProvName);
                 const updatePromises = [];
