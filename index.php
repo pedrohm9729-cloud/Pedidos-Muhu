@@ -2042,7 +2042,7 @@ $isAdmin = ($role === 'admin');
                         return `
                         <tr style="${isDone ? 'opacity:0.65;background:rgba(52,211,153,0.05)' : ''}">
                             <td style="text-align:center">
-                                <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" onclick="toggleItemState('${firstReqId}', '${it.codigo}', '${isDone ? 'pendiente' : 'comprado'}')">
+                                <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;" title="Marcar este insumo como comprado / completado" onclick="toggleSupplierItemState(\`${encodeURIComponent(provName)}\`, '${escapeHtml(it.codigo)}', '${isDone ? 'pendiente' : 'comprado'}')">
                             </td>
                             <td>
                                 <b style="${isDone ? 'text-decoration:line-through' : ''}">${escapeHtml(it.nombre)}</b>
@@ -2104,9 +2104,14 @@ $isAdmin = ($role === 'admin');
                                 <span>🏬 ${escapeHtml(provName)}</span>
                                 <span style="font-size:12px;color:var(--muted);font-weight:500">(${items.length} insumos solicitados)</span>
                             </div>
-                            <button class="btn-whatsapp" onclick="copyWhatsAppText(this, \`${encodeURIComponent(waText)}\`)">
-                                💬 Copiar para WhatsApp
-                            </button>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <button class="btn btn-sm" style="background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.3);font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer;" onclick="completarComprasProveedor(\`${encodeURIComponent(provName)}\`)">
+                                    ✅ Marcar todo como Comprado
+                                </button>
+                                <button class="btn-whatsapp" onclick="copyWhatsAppText(this, \`${encodeURIComponent(waText)}\`)">
+                                    💬 Copiar para WhatsApp
+                                </button>
+                            </div>
                         </div>
                         <div style="overflow-x:auto">
                             <table class="order-table">
@@ -2315,6 +2320,71 @@ $isAdmin = ($role === 'admin');
                     await loadPedidos();
                 } catch (err) {
                     showAlert(false, 'Error', err.message);
+                }
+            window.toggleSupplierItemState = async function(encodedProvName, codigo, nuevoEstado) {
+                const provName = decodeURIComponent(encodedProvName);
+                const updatePromises = [];
+
+                pedidos.forEach(p => {
+                    if (!p.items || p.estado === 'anulado') return;
+                    const match = p.items.find(it => {
+                        const itemProv = getItemSupplier(it);
+                        return (it.codigo === codigo) && (itemProv === provName || provName === 'Otro');
+                    });
+
+                    if (match) {
+                        updatePromises.push(
+                            fetch('api.php?action=toggle_item_estado', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ request_id: p.request_id, codigo: match.codigo, estado_item: nuevoEstado })
+                            }).then(r => r.json())
+                        );
+                    }
+                });
+
+                if (updatePromises.length) {
+                    try {
+                        await Promise.all(updatePromises);
+                        await loadPedidos();
+                    } catch (e) {
+                        showAlert(false, 'Error', e.message);
+                    }
+                }
+            };
+
+            window.completarComprasProveedor = async function(encodedProvName) {
+                const provName = decodeURIComponent(encodedProvName);
+                if (!confirm(`¿Deseas marcar TODOS los insumos pendientes de ${provName} como COMPRADOS / COMPLETADOS?`)) return;
+
+                const updatePromises = [];
+                pedidos.forEach(p => {
+                    if (!p.items || p.estado === 'anulado') return;
+                    p.items.forEach(it => {
+                        const itemProv = getItemSupplier(it);
+                        if ((itemProv === provName || provName === 'Otro') && it.estado_item !== 'comprado') {
+                            updatePromises.push(
+                                fetch('api.php?action=toggle_item_estado', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ request_id: p.request_id, codigo: it.codigo, estado_item: 'comprado' })
+                                }).then(r => r.json())
+                            );
+                        }
+                    });
+                });
+
+                if (!updatePromises.length) {
+                    showAlert(false, 'Aviso', `No hay insumos pendientes para ${provName}.`);
+                    return;
+                }
+
+                try {
+                    await Promise.all(updatePromises);
+                    showAlert(true, 'Compras completadas', `Se marcaron como comprados todos los insumos de ${provName}.`);
+                    await loadPedidos();
+                } catch (e) {
+                    showAlert(false, 'Error', e.message);
                 }
             };
 
