@@ -284,24 +284,14 @@ if ($action === 'enviar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// ── Listar pedidos (sólo admin) ──────────────────────────────────
+// ── Listar pedidos (admin y staff) ──────────────────────────────────
 if ($action === 'pedidos') {
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Acceso restringido al administrador.']);
-        exit;
-    }
     echo json_encode(['pedidos' => pedidos_load()]);
     exit;
 }
 
-// ── Actualizar estado de un pedido (sólo admin) ──────────────────
+// ── Actualizar estado de un pedido (admin y staff) ──────────────────
 if ($action === 'estado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Acceso restringido al administrador.']);
-        exit;
-    }
     guard_csrf();
 
     $in = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -371,13 +361,8 @@ function historial_precios_save(array $data): bool {
     return @rename($tmp, HISTORIAL_PRECIOS_FILE);
 }
 
-// ── Editar ítems completos de un pedido (descontar, modificar cantidades, descripciones, etc.) ──────
+// ── Editar ítems completos de un pedido (admin y staff) ──────
 if (($action === 'editar_pedido' || $action === 'guardar_precios') && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Acceso restringido al administrador.']);
-        exit;
-    }
     guard_csrf();
 
     $in = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -604,13 +589,8 @@ if ($action === 'historial_precios') {
     exit;
 }
 
-// ── Cambiar estado individual de un ítem de pedido (sólo admin) ──────
+// ── Cambiar estado individual de un ítem de pedido (admin y staff) ──────
 if ($action === 'toggle_item_estado' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Acceso restringido al administrador.']);
-        exit;
-    }
     guard_csrf();
 
     $in = json_decode(file_get_contents('php://input'), true) ?: [];
